@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Section Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#1b2a41;--mute:#5b6b80;--bg:#f3f6f9;--card:#fff;--line:#d9e1ea;--acc:#0f766e;--acc2:#0b5a54;--warn:#b45309;--ok:#15803d;--chalk:#f6c945}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 "Atkinson Hyperlegible",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+header{display:flex;gap:12px;align-items:center;padding:12px 20px;background:var(--ink);color:#fff;flex-wrap:wrap}
+header b{font-size:18px;flex:1}header span{color:#b9c6d6;font-size:14px}
+main{max-width:920px;margin:0 auto;padding:20px 16px 60px}
+h2{margin:24px 0 10px;font-size:22px}h3{margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin:10px 0}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row .grow{flex:1;min-width:180px}
+.mute{color:var(--mute);font-size:14px}
+button,.btn{font:inherit;background:var(--acc);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{background:var(--acc2)}
+button.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+button.danger{background:transparent;color:#b91c1c;border:1px solid #b91c1c}
+header button{background:transparent;border:1px solid #6b7f97}
+:focus-visible{outline:3px solid var(--chalk);outline-offset:2px}
+input,select,textarea{font:inherit;width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:6px;margin:4px 0;background:#fff;color:var(--ink)}
+input[type=radio]{width:auto;margin-right:8px}
+label.opt{display:block;padding:6px 0}
+textarea{min-height:60px}
+.tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.tabs a{padding:8px 14px;border-radius:6px;color:var(--ink);text-decoration:none;border:1px solid var(--line);background:#fff}
+.tabs a.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.tag{font-size:13px;padding:2px 8px;border-radius:99px;background:#e6eef5}
+.tag.done{background:var(--chalk);color:#3b2f00}.tag.todo{background:#fde8cf;color:var(--warn)}.tag.live{background:#d6f0dd;color:var(--ok)}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line)}
+.q{border:1px solid var(--line);border-radius:8px;padding:10px;margin:10px 0;background:#fafcfe}
+.login{max-width:420px;margin:12vh auto;text-align:center}
+.err{color:#b91c1c}
+.scroll{overflow-x:auto}
+@media (prefers-reduced-motion:no-preference){button{transition:background .15s}}
+</style>
+</head>
+<body>
+<div id="app"><p style="padding:20px">Loading…</p></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {getAuth,GoogleAuthProvider,signInWithPopup,onAuthStateChanged,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {getFirestore,collection,doc,getDoc,setDoc,addDoc,getDocs,query,where,updateDoc,deleteDoc,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {firebaseConfig,TEACHER_EMAILS,SECTION} from "./config.js";
+
+const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=ts=>ts?.toDate?ts.toDate().toLocaleString():"";
+const root=$("#app");
+let me=null,qs=[];
+
+const shell=(body,tabs="")=>{
+  root.innerHTML=`<header><b>${esc(SECTION)}</b><span>${esc(me.name)} (${me.role})</span><button id="out">Sign out</button></header><main>${tabs}${body}</main>`;
+  $("#out").onclick=()=>signOut(auth);
+};
+const safeUrl=u=>/^https?:\/\//i.test(u)||/^[\w\-./]+$/.test(u)?u:"#";
+
+/* ---------- Auth ---------- */
+function loginView(msg=""){
+  root.innerHTML=`<div class="login card"><h2>${esc(SECTION)}</h2><p class="mute">Sign in with your Gmail to see your activities.</p><button id="g">Sign in with Google</button><p class="err">${esc(msg)}</p></div>`;
+  $("#g").onclick=()=>signInWithPopup(auth,new GoogleAuthProvider()).catch(e=>loginView(e.message));
+}
+onAuthStateChanged(auth,async u=>{
+  if(!u){me=null;return loginView();}
+  const email=(u.email||"").toLowerCase();
+  const role=TEACHER_EMAILS.map(e=>e.toLowerCase()).includes(email)?"teacher":"student";
+  me={uid:u.uid,name:u.displayName||email,email,role};
+  try{await setDoc(doc(db,"users",u.uid),{...me,seen:serverTimestamp()},{merge:true});}catch(e){console.error(e)}
+  route();
+});
+window.addEventListener("hashchange",()=>me&&route());
+
+async function route(){
+  const h=location.hash.replace(/^#\/?/,"").split("/");
+  try{
+    if(me.role==="teacher"){
+      if(h[0]==="results")return await tResults(h[1]);
+      if(h[0]==="modules")return await tModules();
+      if(h[0]==="students")return await tStudents();
+      return await tTests();
+    }
+    if(h[0]==="test")return await sTest(h[1]);
+    return await sHome();
+  }catch(e){shell(`<div class="card err">Something went wrong: ${esc(e.message)}</div>`);}
+}
+
+/* ---------- Student ---------- */
+async function sHome(){
+  const [m,t,s]=await Promise.all([
+    getDocs(collection(db,"modules")),
+    getDocs(query(collection(db,"tests"),where("published","==",true))),
+    getDocs(query(collection(db,"scores"),where("uid","==",me.uid)))
+  ]);
+  const sc={};s.forEach(d=>sc[d.data().testId]=d.data());
+  const tests=t.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  const todo=tests.filter(x=>!sc[x.id]),done=tests.filter(x=>sc[x.id]);
+  const mods={};m.forEach(d=>{const x=d.data();(mods[x.topic||"General"]??=[]).push(x)});
+  shell(`
+  <h2>To do</h2>
+  ${todo.map(x=>`<div class="card row"><div class="grow"><b>${esc(x.title)}</b><div class="mute">${esc(x.topic)} · ${x.questions.length} items</div></div><span class="tag todo">Not yet answered</span><a class="btn" href="#/test/${x.id}">Start</a></div>`).join("")||`<p class="mute">Nothing to answer right now.</p>`}
+  <h2>Completed</h2>
+  ${done.map(x=>`<div class="card row"><div class="grow"><b>${esc(x.title)}</b><div class="mute">${esc(x.topic)}</div></div><span class="tag done">${sc[x.id].score} / ${sc[x.id].total}</span></div>`).join("")||`<p class="mute">No completed activities yet.</p>`}
+  <h2>Modules and learning activity sheets</h2>
+  ${Object.keys(mods).sort().map(k=>`<div class="card"><h3>${esc(k)}</h3>${mods[k].map(x=>`<div class="row"><div class="grow"><a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">${esc(x.title)}</a><div class="mute">${esc(x.desc)}</div></div></div>`).join("")}</div>`).join("")||`<p class="mute">No modules posted yet.</p>`}`);
+}
+
+async function sTest(id){
+  const snap=await getDoc(doc(db,"tests",id));
+  if(!snap.exists()||!snap.data().published)return shell(`<div class="card">This test is not available. <a href="#/">Back</a></div>`);
+  const prev=await getDoc(doc(db,"scores",id+"_"+me.uid));
+  if(prev.exists())return shell(`<div class="card">You already answered this test. Score: <b>${prev.data().score} / ${prev.data().total}</b>. <a href="#/">Back</a></div>`);
+  const t=snap.data();
+  shell(`<h2>${esc(t.title)}</h2><p class="mute">${esc(t.topic)}. You can submit only once.</p>
+  ${t.questions.map((q,i)=>`<div class="card"><b>${i+1}. ${esc(q.q)}</b><div>${
+    q.type==="mc"?q.choices.map((c,j)=>`<label class="opt"><input type="radio" name="q${i}" value="${"ABCD"[j]}">${"ABCD"[j]}. ${esc(c)}</label>`).join(""):
+    q.type==="tf"?["True","False"].map(c=>`<label class="opt"><input type="radio" name="q${i}" value="${c}">${c}</label>`).join(""):
+    `<input name="q${i}" placeholder="Your answer">`}</div></div>`).join("")}
+  <button id="sub">Submit answers</button> <a href="#/">Cancel</a>`);
+  $("#sub").onclick=async()=>{
+    if(!confirm("Submit your answers? You cannot change them afterwards."))return;
+    let score=0;const answers=[];
+    t.questions.forEach((q,i)=>{
+      const el=q.type==="short"?document.querySelector(`[name=q${i}]`):document.querySelector(`[name=q${i}]:checked`);
+      const v=(el?.value||"").trim();answers.push(v);
+      if(v&&v.toLowerCase()===String(q.answer).trim().toLowerCase())score++;
+    });
+    await setDoc(doc(db,"scores",id+"_"+me.uid),{testId:id,uid:me.uid,name:me.name,email:me.email,score,total:t.questions.length,answers,submittedAt:serverTimestamp()});
+    shell(`<div class="card"><h2>Submitted</h2><p>Your score: <b>${score} / ${t.questions.length}</b></p><a class="btn" href="#/">Back to dashboard</a></div>`);
+  };
+}
+
+/* ---------- Teacher ---------- */
+const tabs=on=>`<div class="tabs">${[["","Tests"],["modules","Modules"],["students","Students"]].map(([h,l])=>`<a href="#/${h}" class="${on===h?"on":""}">${l}</a>`).join("")}</div>`;
+
+function parseTest(txt){
+  const out=[];let c=null,m;
+  for(let l of txt.split(/\r?\n/)){
+    l=l.trim();if(!l)continue;
+    if(m=l.match(/^(\d+)[.)]\s*(.*)/)){c={type:"short",q:m[2],choices:[],answer:""};out.push(c);}
+    else if(!c)continue;
+    else if(m=l.match(/^([A-Da-d])[.)]\s*(.*)/)){c.choices.push(m[2]);c.type="mc";}
+    else if(m=l.match(/^(?:answer|ans)\s*[:\-]\s*(.*)/i)){c.answer=m[1].trim();}
+    else c.q+=" "+l;
+  }
+  out.forEach(q=>{
+    if(q.type==="mc"){
+      if(q.choices.length===2&&/^true$/i.test(q.choices[0])&&/^false$/i.test(q.choices[1])){
+        q.answer=/^(a|true)$/i.test(q.answer)?"True":"False";q.type="tf";q.choices=[];
+      }else{q.answer=q.answer.toUpperCase().charAt(0);while(q.choices.length<4)q.choices.push("");}
+    }else if(/^(true|false)$/i.test(q.answer)){q.type="tf";q.answer=/^t/i.test(q.answer)?"True":"False";}
+  });
+  return out;
+}
+
+const qcard=(q,i)=>`<div class="q" data-i="${i}">
+  <div class="row"><select data-f="type" class="grow">${[["mc","Multiple choice"],["tf","True / False"],["short","Short answer"]].map(([v,l])=>`<option value="${v}" ${q.type===v?"selected":""}>${l}</option>`).join("")}</select><button class="danger" data-x>Remove</button></div>
+  <textarea data-f="q" placeholder="Question ${i+1}">${esc(q.q)}</textarea>
+  ${q.type==="mc"?q.choices.map((c,j)=>`<input data-c="${j}" value="${esc(c)}" placeholder="Choice ${"ABCD"[j]}">`).join("")+`<input data-f="answer" value="${esc(q.answer)}" placeholder="Correct letter (A, B, C or D)">`:""}
+  ${q.type==="tf"?`<select data-f="answer"><option ${q.answer==="True"?"selected":""}>True</option><option ${q.answer==="False"?"selected":""}>False</option></select>`:""}
+  ${q.type==="short"?`<input data-f="answer" value="${esc(q.answer)}" placeholder="Correct answer (matched ignoring capital letters)">`:""}
+</div>`;
+const drawQ=()=>{$("#ql").innerHTML=qs.map(qcard).join("");};
+const blank=()=>({type:"mc",q:"",choices:["","","",""],answer:""});
+
+async function tTests(){
+  const [t,s]=await Promise.all([getDocs(collection(db,"tests")),getDocs(collection(db,"scores"))]);
+  const cnt={};s.forEach(d=>{const k=d.data().testId;cnt[k]=(cnt[k]||0)+1});
+  const tests=t.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
+  qs=[];
+  shell(`
+  <h2>Tests</h2>
+  ${tests.map(x=>`<div class="card row"><div class="grow"><b>${esc(x.title)}</b><div class="mute">${esc(x.topic)} · ${x.questions.length} items · ${cnt[x.id]||0} submitted</div></div>
+    <span class="tag ${x.published?"live":""}">${x.published?"Posted":"Draft"}</span>
+    <button class="ghost" data-pub="${x.id}" data-v="${x.published}">${x.published?"Unpost":"Post to students"}</button>
+    <a class="btn" href="#/results/${x.id}">Scores</a>
+    <button class="danger" data-del="${x.id}">Delete</button></div>`).join("")||`<p class="mute">No tests yet. Create one below.</p>`}
+  <h2>Create a test</h2>
+  <div class="card">
+    <input id="tt" placeholder="Test title"><input id="tp" placeholder="Topic (for example, Normal Distribution)">
+    <label class="mute">Generate from a file (.docx or .txt, see the format in README) <input type="file" id="tf" accept=".txt,.docx"></label>
+    <div id="ql"></div>
+    <div class="row"><button class="ghost" id="aq">Add question</button><button id="sv">Save test</button></div>
+    <p class="mute" id="st"></p>
+  </div>`,tabs(""));
+  drawQ();
+  document.querySelectorAll("[data-pub]").forEach(b=>b.onclick=async()=>{await updateDoc(doc(db,"tests",b.dataset.pub),{published:b.dataset.v!=="true"});route();});
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(confirm("Delete this test? Scores stay in the database."))await deleteDoc(doc(db,"tests",b.dataset.del)),route();});
+  $("#aq").onclick=()=>{qs.push(blank());drawQ();};
+  const ql=$("#ql");
+  ql.addEventListener("input",e=>{const i=+e.target.closest(".q").dataset.i;if(e.target.dataset.f==="type")return;
+    if(e.target.dataset.f)qs[i][e.target.dataset.f]=e.target.value;else if(e.target.dataset.c)qs[i].choices[+e.target.dataset.c]=e.target.value;});
+  ql.addEventListener("change",e=>{const i=+e.target.closest(".q").dataset.i;
+    if(e.target.dataset.f==="type"){const q=qs[i];q.type=e.target.value;q.answer=q.type==="tf"?"True":"";if(q.type==="mc"&&!q.choices.length)q.choices=["","","",""];drawQ();}});
+  ql.addEventListener("click",e=>{if(e.target.dataset.x!==undefined){qs.splice(+e.target.closest(".q").dataset.i,1);drawQ();}});
+  $("#tf").onchange=async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{
+      const txt=f.name.toLowerCase().endsWith(".docx")?(await mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()})).value:await f.text();
+      const got=parseTest(txt);qs=qs.concat(got);drawQ();
+      $("#st").textContent=got.length?`Added ${got.length} questions. Check the answers, then save.`:"No questions found. Check the file format in the README.";
+      if(!$("#tt").value)$("#tt").value=f.name.replace(/\.\w+$/,"");
+    }catch(err){$("#st").textContent="Could not read the file: "+err.message;}
+  };
+  $("#sv").onclick=async()=>{
+    const title=$("#tt").value.trim(),topic=$("#tp").value.trim();
+    if(!title)return $("#st").textContent="Add a test title.";
+    if(!qs.length)return $("#st").textContent="Add at least one question.";
+    const bad=qs.findIndex(q=>!q.q.trim()||!String(q.answer).trim()||(q.type==="mc"&&q.choices.some(c=>!c.trim())));
+    if(bad>=0)return $("#st").textContent=`Question ${bad+1} is missing its text, choices or correct answer.`;
+    const clean=qs.map(q=>({type:q.type,q:q.q.trim(),choices:q.type==="mc"?q.choices:[],answer:q.type==="mc"?q.answer.trim().toUpperCase():q.answer.trim()}));
+    await addDoc(collection(db,"tests"),{title,topic,questions:clean,published:false,createdAt:serverTimestamp()});
+    route();
+  };
+}
+
+async function tResults(id){
+  const [t,s,u]=await Promise.all([getDoc(doc(db,"tests",id)),getDocs(query(collection(db,"scores"),where("testId","==",id))),getDocs(query(collection(db,"users"),where("role","==","student")))]);
+  if(!t.exists())return shell(`<div class="card">Test not found.</div>`,tabs(""));
+  const sub=s.docs.map(d=>d.data()).sort((a,b)=>a.name.localeCompare(b.name));
+  const ids=new Set(sub.map(x=>x.uid));
+  const pending=u.docs.map(d=>d.data()).filter(x=>!ids.has(x.uid)).sort((a,b)=>a.name.localeCompare(b.name));
+  const avg=sub.length?(sub.reduce((a,x)=>a+x.score,0)/sub.length).toFixed(1):"–";
+  shell(`<p><a href="#/">← Tests</a></p><h2>${esc(t.data().title)}</h2>
+  <p class="mute">${sub.length} done · ${pending.length} not yet · average ${avg} / ${t.data().questions.length}</p>
+  <div class="card scroll"><h3>Done</h3><table><tr><th>Student</th><th>Email</th><th>Score</th><th>Submitted</th></tr>
+  ${sub.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.email)}</td><td>${x.score} / ${x.total}</td><td>${fmt(x.submittedAt)}</td></tr>`).join("")||`<tr><td colspan="4" class="mute">No submissions yet.</td></tr>`}</table></div>
+  <div class="card scroll"><h3>Not yet done</h3><table>${pending.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.email)}</td></tr>`).join("")||`<tr><td class="mute">Everyone who has signed in has submitted.</td></tr>`}</table></div>
+  <button class="ghost" id="csv">Download scores (CSV)</button>`,tabs(""));
+  $("#csv").onclick=()=>{
+    const rows=[["Name","Email","Score","Total"],...sub.map(x=>[x.name,x.email,x.score,x.total])];
+    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv"}));
+    a.download=t.data().title+"-scores.csv";a.click();
+  };
+}
+
+async function tModules(){
+  const m=await getDocs(collection(db,"modules"));
+  const list=m.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.topic||"").localeCompare(b.topic||""));
+  shell(`<h2>Modules and learning activity sheets</h2>
+  ${list.map(x=>`<div class="card row"><div class="grow"><b>${esc(x.title)}</b><div class="mute">${esc(x.topic)} · ${esc(x.url)}</div></div><button class="danger" data-del="${x.id}">Remove</button></div>`).join("")||`<p class="mute">No modules yet.</p>`}
+  <div class="card"><h3>Add a module</h3>
+    <input id="mt" placeholder="Title (for example, LAS 1: Normal Curve)"><input id="mp" placeholder="Topic">
+    <input id="mu" placeholder="Link or file path (Drive/PDF link, or las/lesson1.pdf from this repo)"><input id="md" placeholder="Short description (optional)">
+    <button id="ma">Add module</button> <span class="err" id="me"></span></div>`,tabs("modules"));
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{await deleteDoc(doc(db,"modules",b.dataset.del));route();});
+  $("#ma").onclick=async()=>{
+    const title=$("#mt").value.trim(),url=$("#mu").value.trim();
+    if(!title||!url)return $("#me").textContent="Title and link are required.";
+    await addDoc(collection(db,"modules"),{title,topic:$("#mp").value.trim()||"General",url,desc:$("#md").value.trim(),createdAt:serverTimestamp()});
+    route();
+  };
+}
+
+async function tStudents(){
+  const u=await getDocs(query(collection(db,"users"),where("role","==","student")));
+  const list=u.docs.map(d=>d.data()).sort((a,b)=>a.name.localeCompare(b.name));
+  shell(`<h2>Students (${list.length})</h2><div class="card scroll"><table><tr><th>Name</th><th>Email</th></tr>
+  ${list.map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(x.email)}</td></tr>`).join("")||`<tr><td class="mute">Students appear here after their first sign-in.</td></tr>`}</table></div>`,tabs("students"));
+}
+</script>
+</body>
+</html>
