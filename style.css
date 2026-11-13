@@ -340,69 +340,13 @@ img.avatar{display:block}
 .seg.on{background:var(--soft);color:var(--pri);border-color:var(--pri)}
 .item.cw{align-items:flex-start}
 
-/* ===== admin: compact, professional, grey buttons ===== */
-tr[hidden]{display:none!important}
-.is-admin #main{padding-top:12px;max-width:1180px}
-.is-admin h1{font-size:1.25rem}
-.is-admin .ph{margin-bottom:8px}.is-admin .banner{margin-bottom:8px}
-.is-admin h2{margin:10px 0 6px;font-size:1rem}
-.is-admin .card{padding:10px 12px;margin-bottom:8px}
-.is-admin .card h3{margin:0 0 6px;font-size:.95rem}
-.is-admin .cards{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-bottom:8px}
-.is-admin .cards .card{padding:8px 10px}
-.is-admin .cards .si{width:30px;height:30px;border-radius:8px}.is-admin .cards .ic{width:16px;height:16px}
-.is-admin .sv{font-size:1.15rem}.is-admin .sl{font-size:12px}
-.is-admin .cols{gap:8px}
-.is-admin .ann{padding:8px 12px}.is-admin .ann p{margin:2px 0}
-.is-admin table{font-size:13.5px}
-.is-admin th,.is-admin td{padding:5px 9px}
-.is-admin .tabs{margin-bottom:8px}
-.is-admin .tabs a{padding:8px 14px}
-
-/* grey buttons */
-.is-admin .btn{background:#e8ebf0;color:#1f2937;border-color:#d3d8e0}
-.is-admin .btn:hover,.is-admin .btn.ok:hover,.is-admin .btn.danger:hover{background:#dbe0e8}
-.is-admin .btn.ok,.is-admin .btn.danger{background:#e8ebf0;color:#1f2937}
-.is-admin .btn.danger:hover{color:var(--bad)}
-.is-admin .btn.ghost{background:transparent}.is-admin .btn.ghost:hover{background:#eef0f4}
-.is-admin .btn.pri,.is-admin .btn.pri:hover{background:#4b5563;color:#fff;border-color:#4b5563}
-.is-admin .btn.pri:hover{background:#374151}
-
-/* toolbar + strips */
-.tb{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-.tb .grow{flex:1 1 220px}
-.tb select{width:auto;flex:0 1 auto;min-width:120px}
-.strip{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0}
-.strip+.strip{border-top:1px solid var(--line)}.strip .sp{flex:1}
-.rt td.act{text-align:right;white-space:nowrap}.rt td.act .row{justify-content:flex-end;flex-wrap:nowrap}
-.rt td.nm b{font-weight:600}
-
-/* form sheet */
-dialog.sheet{max-width:540px;width:94vw;padding:0;overflow:hidden}
-dialog.sheet[open]{display:flex;flex-direction:column;max-height:90vh}
-.sheet .sh{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
-.sheet .sh h3{margin:0}
-.sheet .sb{padding:4px 16px 10px;overflow-y:auto}
-.sheet .end{padding:10px 16px;border-top:1px solid var(--line);margin:0}
-.sheet .err{color:var(--bad);font-size:13px;margin:0;padding:6px 16px 0}.sheet .err[hidden]{display:none}
-
-@media(max-width:700px){
-  .tb select{flex:1 1 44%;min-width:0}
-  .tw.rtw{border:0;background:none}
-  .rt,.rt tbody,.rt tr,.rt td{display:block}
-  .rt thead{display:none}
-  .rt tr{border:1px solid var(--line);border-radius:10px;margin:0 0 8px;padding:8px 10px;background:#fff}
-  .rt tr:hover{background:#fff}
-  .rt td{border:0;padding:2px 0;display:flex;justify-content:space-between;align-items:center;gap:10px;text-align:right}
-  .rt td::before{content:attr(data-l);color:var(--mut);font-size:12px;font-weight:600;flex:none;text-align:left}
-  .rt td.nm,.rt td.act{display:block;text-align:left}
-  .rt td.nm::before,.rt td.act::before,.rt td[data-l=""]::before{content:none}
-  .rt td.nm{font-size:15px;padding-bottom:4px}
-  .rt td.act{padding-top:6px;border-top:1px solid var(--line);margin-top:6px}
-  .rt td.act .row{justify-content:flex-end}
-  .rt td:empty{display:none}
-  .is-admin .stat{flex-direction:row;align-items:center}
-  dialog.sheet{margin:auto 0 0;width:100%;max-width:none;border-radius:14px 14px 0 0;max-height:92vh}
-  .sheet .end .btn{flex:1}
-  .strip .btn{margin-left:auto}
-}
+/* floating profile panel */
+.pmpanel{width:340px;max-width:calc(100vw - 24px);padding:14px;max-height:calc(100vh - 80px);overflow-y:auto}
+.pmpanel [hidden]{display:none!important}
+.pfh{display:flex;gap:12px;align-items:center;margin-bottom:10px}
+.pfw{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere;line-height:1.3}
+.pfb{margin-bottom:6px}
+.pfs{border-top:1px solid var(--line);margin-top:10px;padding-top:6px}
+.pfs h4{margin:6px 0 2px}
+.pfe{justify-content:flex-end;margin-top:12px}
+.pfl{border-top:1px solid var(--line);margin-top:12px;padding-top:6px}
