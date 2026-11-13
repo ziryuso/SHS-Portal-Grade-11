@@ -296,8 +296,8 @@ input,select,textarea{min-height:36px;padding:7px 10px}
 .sticky-save{padding:8px}
 
 /* header title: TTVHS darker, rest lighter */
-.t1{color:#2a3550;font-weight:700;letter-spacing:.01em}
-.t2{color:#6b7790;font-weight:500}
+.t1{color:#5b6b8f;font-weight:600;letter-spacing:.01em}
+.t2{color:#8a96b0;font-weight:500}
 .top .ttl{font-size:15px;display:flex;align-items:center;gap:8px;min-width:0}
 .m-only{display:none}
 .chipu{text-decoration:none;color:inherit}
