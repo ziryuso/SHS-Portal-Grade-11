@@ -339,3 +339,9 @@ img.avatar{display:block}
 .seg{border:1px solid var(--line);background:var(--card);color:var(--mut);padding:8px 14px;border-radius:999px;font:inherit;font-weight:600;cursor:pointer}
 .seg.on{background:var(--soft);color:var(--pri);border-color:var(--pri)}
 .item.cw{align-items:flex-start}
+.sgn{font-size:17px;font-weight:500;text-align:center;margin:0 0 12px}
+#lf{display:flex;flex-direction:column;gap:10px}
+#lf input{margin:0}
+label.f.ph{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0;padding:0}
+input[data-ph],textarea[data-ph]{margin-top:10px}
+.g2>div>input[data-ph]:only-child,.g2>div>textarea[data-ph]:only-child{margin-top:0}
