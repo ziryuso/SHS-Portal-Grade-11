@@ -9,7 +9,8 @@ export const nav=()=>[
   {k:"announcements",l:"News",i:"bell"},
   {k:"settings",l:"Settings",i:"cog"},
   {k:"logs",l:"Logs & Storage",i:"shield"}];
-export const pages={};
+import {generalProfile} from "./profile.js";
+export const pages={profile:generalProfile};
 const byName=(a,b)=>(a.name||"").localeCompare(b.name||"");
 const SB={approved:["Approved","ok"],pending:["Pending","warn"],inactive:["Inactive","bad"]};
 
@@ -19,12 +20,12 @@ pages.home=async()=>{
     count("users",where("role","==","student"),where("status","==","approved")),count("users",where("role","==","teacher"),where("status","==","approved")),
     count("users",where("status","==","pending")),count("sections"),count("activities"),count("submissions"),
     list("requests",where("done","==",false)),list("logs",orderBy("at","desc"),limit(6)),list("users",where("status","==","pending"))]);
-  return `<div class="banner"><h1>${greet()}, Administrator</h1><p>${fday(Date.now())}</p>${S.set.schoolYear?`<span class="pill">SY ${esc(S.set.schoolYear)}</span>`:`<span class="pill">School year not set</span>`}${S.set.term?`<span class="pill">${esc(S.set.term)}</span>`:""}</div>
+  return `<div class="banner"><h1>${greet()}, Administrator</h1><p>${fday(Date.now())}</p></div>
   <div class="cards">${stat("Students",stu,"Approved","users")}${stat("Teachers",tea,"Approved","users","ok")}${stat("Sections",secs,"","grid")}
   ${stat("Pending approvals",pend,"Students and teachers","clock",pend?"warn":"ok")}${stat("Open requests",reqs.length,"From students","bell",reqs.length?"warn":"ok")}${stat("Activities / Submissions",`${acts} / ${subs}`,"All time","chart")}</div>
   <div class="cols"><div class="card"><h3>Waiting for approval</h3>${tbl(["Name","Role",""],pending.slice(0,6).map(x=>[esc(x.name),esc(x.role),btn("apv","Approve",x.id,"ok")]),"Nobody is waiting.")}${pending.length>6?`<p><a href="#/approvals">See all ${pending.length}</a></p>`:""}</div>
   <div class="card"><h3>Recent activity</h3>${tbl(["When","Who","Action"],logs.map(x=>[fdate(ts(x.at)),esc(x.by),esc(x.action)]),"No activity logged yet.")}</div></div>
-  <h2 style="margin-top:20px">Latest announcements</h2>${await annHtml(2)}`;
+  <h2>Latest announcements</h2>${await annHtml(2)}`;
 };
 
 /* ---------- approvals ---------- */

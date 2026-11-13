@@ -268,3 +268,51 @@ details.alt input{margin-top:8px}details.alt .btn{margin-top:8px}
 .side .logo-img{padding:1px;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
 .show-m{display:none;align-items:center;gap:8px}
 @media(max-width:900px){.show-m{display:flex;font-size:14px;line-height:1.2}}
+
+/* ===== minimal + compact ===== */
+html{scroll-padding-top:68px}
+:root{--r:10px}
+body{font-size:15px;line-height:1.5}
+#main{padding:14px clamp(12px,2.5vw,28px) 84px}
+.top{min-height:52px;padding:6px clamp(12px,2.5vw,28px)}
+.runhead{top:52px}
+.runhead .qnav{max-height:76px;overflow:auto}
+.qc,#qh,.item{scroll-margin-top:120px}
+.ph{margin-bottom:10px}
+.card{padding:12px 14px;margin-bottom:10px}
+.cards{gap:10px;margin-bottom:10px}.cols{gap:10px}
+.item{padding:8px 0}
+h2{margin:14px 0 8px;font-size:1.05rem}
+.banner{background:none;border:0;padding:0;margin:0 0 12px}
+.banner h1{color:var(--ink)}
+.ss,.pill{display:none}
+.tabs{margin-bottom:10px}
+th,td{padding:7px 10px}
+label.f{margin:8px 0 3px}
+.btn{min-height:36px;padding:7px 14px}.btn.sm{min-height:28px;padding:3px 10px}
+input,select,textarea{min-height:36px;padding:7px 10px}
+.si{width:36px;height:36px}.sv{font-size:1.3rem}
+.stat{gap:10px}
+.sticky-save{padding:8px}
+
+/* header title: TTVHS darker, rest lighter */
+.t1{color:#111a2e;font-weight:800;letter-spacing:.01em}
+.t2{color:#6b7790;font-weight:500}
+.top .ttl{font-size:15px;display:flex;align-items:center;gap:8px;min-width:0}
+.m-only{display:none}
+.chipu{text-decoration:none;color:inherit}
+.chipu .who small{display:none}
+.avatar{object-fit:cover;overflow:hidden;flex:none}
+img.avatar{display:block}
+.avatar.xl{width:72px;height:72px;font-size:28px}
+.brand b{font-size:16px;letter-spacing:.02em}
+@media(max-width:900px){.m-only{display:block}.top .ttl{font-size:14px}.chipu .who{display:none}}
+@media(max-width:640px){.xs-hide{display:none}input,select,textarea{font-size:16px;min-height:40px}.btn{min-height:40px}.btn.sm{min-height:34px}}
+
+/* login: title outside the box, smaller card */
+.authw{width:100%;max-width:360px}
+.brandh{display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:12px}
+.brandh h1{font-size:1.05rem;line-height:1.25;margin:0;text-shadow:0 0 8px #fff,0 0 3px #fff}
+.brandh .logo-img.big{width:48px;height:48px}
+.authc{max-width:none;padding:14px 16px}
+.authc .tabs{margin-bottom:10px}

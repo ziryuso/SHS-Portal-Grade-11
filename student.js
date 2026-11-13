@@ -1,3 +1,4 @@
+import {photoCard} from "./profile.js";
 import {S,act,$,$$,esc,list,db,doc,getDoc,setDoc,addDoc,updateDoc,collection,where,serverTimestamp,toast,ask,go,fdate,pct,bar,badge,stat,tbl,head,empty,ic,sha,shuffle,qMax,annHtml,greet,fday,mmss,errMsg,ts,norm} from "./core.js";
 
 export const nav=()=>[
@@ -56,7 +57,7 @@ pages.home=async()=>{
   const minor=m.minor===undefined?`<div class="card"><h3>Are you a minor (under 18)?</h3><p class="mut">If yes, a parent or guardian must give permission to use this portal.</p>
     <button class="btn" data-a="minor" data-id="1">Yes</button> <button class="btn ghost" data-a="minor" data-id="0">No</button></div>`:"";
   return `<div class="banner"><h1>${greet()}, ${esc(m.name.split(",").pop().trim().split(" ")[0])}!</h1>
-  <p>${fday(Date.now())}</p><span class="pill">${esc(d.sec?.name||"No section")}</span>${S.set.schoolYear?`<span class="pill">SY ${esc(S.set.schoolYear)}</span>`:""}${S.set.term?`<span class="pill">${esc(S.set.term)}</span>`:""}<span class="pill">Alias: ${esc(m.alias)}</span></div>
+  <p>${fday(Date.now())}${d.sec?.name?" · "+esc(d.sec.name):""}</p></div>
   ${minor}
   <div class="cards">${stat("Activities to do",todo.length,todo.length?"Start with the earliest deadline":"You're all caught up","clock",todo.length?"warn":"ok")}
   ${stat("Completed",`${d.subs.length}/${d.acts.length}`,"Activities answered","check","ok")}
@@ -64,7 +65,7 @@ pages.home=async()=>{
   ${stat("Attempts left",left,"On open activities","list")}</div>
   <div class="cols"><div class="card"><h3>Due soon</h3>${todo.slice(0,5).map(x=>`<div class="item"><div><b>${esc(x.a.title)}</b><div class="mut sm">${esc(subjName(d,loadOf(d,x.a)))} · ${dueTxt(x.a)}</div></div><a class="btn sm" href="#/take/${x.a.id}">${x.st==="progress"?"Resume":"Start"}</a></div>`).join("")||empty("Nothing due right now.","check")}</div>
   <div class="card"><h3>Recent scores</h3>${recent.map(s=>`<div class="item"><div><b>${esc(actOf(s.actId)?.title||"Activity")}</b><div class="mut sm">${pend(s)?"Awaiting grading":""}</div></div><div style="min-width:110px"><b>${pend(s)?"…":sp(s)+"%"}</b>${bar(pend(s)?0:sp(s),sp(s)<75?"warn":"ok")}</div></div>`).join("")||empty("No scores yet.","chart")}</div></div>
-  <h2 style="margin-top:20px">My subjects</h2><div class="cards">${d.loads.map(l=>subjCard(d,l)).join("")||`<div class="card">${empty("No subjects assigned to your section yet.","book")}</div>`}</div>
+  <h2>My subjects</h2><div class="cards">${d.loads.map(l=>subjCard(d,l)).join("")||`<div class="card">${empty("No subjects assigned to your section yet.","book")}</div>`}</div>
   <h2>Latest announcements</h2>${await annHtml(3)}`;
 };
 act.minor=async el=>{const m=el.dataset.id==="1";await updateDoc(doc(db,"users",S.me.uid),{minor:m,parentOk:!m});S.me.minor=m;toast(m?"Please have your parent/guardian confirm with your adviser.":"Saved.");go("home")};
@@ -202,7 +203,7 @@ pages.result=async([id])=>{
       return `<div class="card ${cls}"><b>${i+1}. ${esc(q.p)}</b>${body}</div>`}).join("");
   }
   const left=Math.max(0,a.attempts-s.attempts);
-  return head(a.title,"Result",`<a class="btn ghost" href="${back}">← Back to subject</a>`)+
+  return head(a.title,"",`<a class="btn ghost" href="${back}">← Back to subject</a>`)+
   `<div class="card"><div class="row" style="gap:24px"><div><div class="big ${pend(s)?"":sp(s)>=75?"ok":"bad"}">${pend(s)?"…":sp(s)+"%"}</div><div class="mut">${pend(s)?"Pending teacher grading":"Your best score"}</div></div>
   <div><p><b>${scoreTxt(s)}</b></p><p class="mut">Attempts used: ${s.attempts} of ${a.attempts}${s.scores?.length>1?" · Scores: "+s.scores.map(x=>x.s).join(", "):""}</p>
   <p class="mut sm">Submitted ${fdate(ts(s.at))}</p></div></div>${st==="retake"?`<p><a class="btn" href="#/take/${id}">Retake (${left} left)</a></p>`:""}</div>`+review;
@@ -226,8 +227,7 @@ pages.announcements=async()=>head("Announcements","From the school administratio
 /* ---------- profile ---------- */
 pages.profile=async()=>{
   const m=S.me,secs=await list("sections"),sec=secs.find(x=>x.id===m.sectionId);
-  return head("My profile")+`<div class="card"><div class="row" style="gap:16px"><div class="avatar" style="width:64px;height:64px;font-size:24px">${esc(m.name[0]||"?")}</div><div><h3 style="margin:0">${esc(m.name)}</h3><div class="mut">${esc(m.email)}</div></div></div>
-  ${tbl(["Field","Details"],[["Section",esc(sec?.name||"–")],["LRN",esc(m.lrn||"Not provided")],["Alias",`${esc(m.alias)} <span class="mut sm">(classmates see only this)</span>`],["School year",esc(S.set.schoolYear||"–")],["Account status",badge("Approved","ok")]])}</div>
+  return head("My profile")+`${photoCard()}<div class="card">${tbl(["Field","Details"],[["Section",esc(sec?.name||"–")],["LRN",esc(m.lrn||"Not provided")],["Alias",`${esc(m.alias)} <span class="mut sm">(classmates see only this)</span>`],["School year",esc(S.set.schoolYear||"–")],["Account status",badge("Approved","ok")]])}</div>
   <div class="card"><h3>Need a change?</h3><p class="mut">Requests are sent to the administrator.</p>
   <button class="btn ghost" data-a="reqfix">Request name / section correction</button> <button class="btn danger" data-a="reqdel">Request account deletion</button></div>
   <div class="card"><button class="btn ghost" data-a="out">Log out</button></div>`;

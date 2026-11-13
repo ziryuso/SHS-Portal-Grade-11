@@ -1,4 +1,4 @@
-import {auth,db,S,act,chg,$,$$,esc,doc,getDoc,setDoc,list,where,serverTimestamp,toast,errMsg,ic,SCHOOL,ADMIN_EMAILS} from "./core.js";
+import {auth,db,S,act,chg,$,$$,esc,avatar,doc,getDoc,setDoc,list,where,serverTimestamp,toast,errMsg,ic,SCHOOL,ADMIN_EMAILS} from "./core.js";
 import {onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {loginView,registerView,waitView,errorView,autoRegister} from "./auth.js";
 import * as student from "./student.js";
@@ -37,14 +37,16 @@ async function boot(){
 }
 
 /* ---------- shell ---------- */
-const initials=SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase();
+const TITLE=`<span class="t1">TTVHS</span> <span class="t2"><span class="xs-hide">Senior High School </span>Student Portal</span>`;
 function buildShell(){
   const R=roles[S.me.role],items=R.nav();
-  const links=cls=>items.map(n=>`<a href="#/${n.k}" data-k="${n.k}" data-m="${(n.m||[]).join(",")}">${ic(n.i)}<span>${esc(n.l)}</span></a>`).join("");
-  $("#app").innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="logo-img" src="logo.jpg" alt="School logo"><div><b>${esc(SCHOOL)}</b><span>Grade 11 Learning Portal</span></div></div>
-  <nav aria-label="Main">${links()}</nav><nav><a href="#" data-a="out">${ic("out")}<span>Log out</span></a></nav><div class="foot">${S.set.schoolYear?"SY "+esc(S.set.schoolYear):""} ${esc(S.set.term)}</div></aside>
-  <div class="main-col"><header class="top"><div class="ttl hide-m">${esc(SCHOOL)}</div><div class="ttl show-m"><img class="logo-img sm" src="logo.jpg" alt="">${esc(SCHOOL)}</div><div class="chipu"><div class="who"><b>${esc(S.me.name)}</b><small>${esc(S.me.role[0].toUpperCase()+S.me.role.slice(1))}</small></div><div class="avatar">${esc((S.me.name||"?")[0])}</div></div></header>
-  <main id="main" tabindex="-1"></main></div></div><nav class="bottom" aria-label="Main">${links()}<a href="#" data-a="out">${ic("out")}<span>Log out</span></a></nav>`;
+  const links=items.map(n=>`<a href="#/${n.k}" data-k="${n.k}" data-m="${(n.m||[]).join(",")}">${ic(n.i)}<span>${esc(n.l)}</span></a>`).join("");
+  const out=`<a href="#" data-a="out">${ic("out")}<span>Log out</span></a>`;
+  $("#app").innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="logo-img" src="logo.jpg" alt=""><b>TTVHS</b></div>
+  <nav aria-label="Main">${links}</nav><nav>${out}</nav><div class="foot">${S.set.schoolYear?"SY "+esc(S.set.schoolYear):""} ${esc(S.set.term)}</div></aside>
+  <div class="main-col"><header class="top"><div class="ttl"><img class="logo-img sm m-only" src="logo.jpg" alt="">${TITLE}</div>
+  <a class="chipu" href="#/profile" aria-label="My profile"><div class="who"><b>${esc(S.me.name)}</b></div>${avatar(S.me)}</a></header>
+  <main id="main" tabindex="-1"></main></div></div><nav class="bottom" aria-label="Main">${links}${out}</nav>`;
 }
 function markNav(name){
   $$("[data-k]").forEach(a=>{const on=a.dataset.k===name||a.dataset.m.split(",").includes(name);a.classList.toggle("on",on);if(on)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")});

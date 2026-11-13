@@ -92,3 +92,7 @@ export async function annHtml(n=20,manage=false){
   const a=await list("announcements",orderBy("at","desc"),limit(n));
   return a.length?a.map(x=>`<div class="card ann"><div class="row between"><b>${esc(x.title||"Announcement")}</b>${manage?btn("delann","Delete",x.id,"danger"):""}</div><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}${x.by?" · "+esc(x.by):""}</div></div>`).join(""):`<div class="card">${empty("No announcements yet.","bell")}</div>`;
 }
+
+/* profile picture / initial */
+export const avatar=(m,size="")=>m.photo?`<img class="avatar ${size}" data-avatar data-size="${size}" src="${esc(m.photo)}" alt="">`:`<span class="avatar ${size}" data-avatar data-size="${size}">${esc((m.name||"?").trim()[0]||"?")}</span>`;
+export const refreshAvatars=()=>$$("[data-avatar]").forEach(el=>{el.outerHTML=avatar(S.me,el.dataset.size||"")});

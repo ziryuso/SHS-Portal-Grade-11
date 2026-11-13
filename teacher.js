@@ -5,7 +5,8 @@ export const nav=()=>[
   {k:"classes",l:"My Classes",i:"book",m:["load","editor","grade"]},
   ...(S.advSecs.length?[{k:"advisory",l:"Advisory",i:"users"}]:[]),
   {k:"announcements",l:"News",i:"bell"}];
-export const pages={};
+import {generalProfile} from "./profile.js";
+export const pages={profile:generalProfile};
 
 /* ---------- helpers ---------- */
 const chunk=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r};
@@ -33,7 +34,7 @@ pages.home=async()=>{
   if(S.advSecs.length){const p=(await inQ("users","sectionId",S.advSecs.map(s=>s.id))).filter(u=>u.role==="student"&&u.status==="pending");
     adv=p.length?`<div class="card" style="border-color:var(--pri)"><div class="row between"><div><b>${p.length} student${p.length>1?"s":""} waiting for your approval</b><div class="mut sm">Advisory: ${esc(S.advSecs.map(s=>s.name).join(", "))}</div></div><a class="btn" href="#/advisory">Review</a></div></div>`:""}
   const recent=[...subs].sort((a,b)=>ts(b.at)-ts(a.at)).slice(0,6);
-  return `<div class="banner"><h1>${greet()}, ${esc(S.me.name.split(",").pop().trim().split(" ")[0])}!</h1><p>${fday(Date.now())}</p>${S.set.schoolYear?`<span class="pill">SY ${esc(S.set.schoolYear)}</span>`:""}${S.set.term?`<span class="pill">${esc(S.set.term)}</span>`:""}<span class="pill">${loads.length} class load${loads.length==1?"":"s"}</span></div>${adv}
+  return `<div class="banner"><h1>${greet()}, ${esc(S.me.name.split(",").pop().trim().split(" ")[0])}!</h1><p>${fday(Date.now())}</p></div>${adv}
   <div class="cards">${stat("My classes",loads.length,`${new Set(secIds).size} section(s)`,"book")}${stat("Students",studs.length,"In my sections","users")}
   ${stat("Activities posted",acts.length,"","list")}${stat("Submissions",subs.length,"All time","check","ok")}
   ${stat("To grade",toGrade.length,"Essay answers waiting","clock",toGrade.length?"warn":"ok")}${stat("Average score",fm(mean(gs.map(sp))),"All my classes","star")}</div>
@@ -41,7 +42,7 @@ pages.home=async()=>{
     return `<div class="item"><div style="flex:1;min-width:160px"><b>${esc(l.sn)}</b> <span class="mut sm">${esc(l.sec)}</span>${bar(a||0,a!=null&&a<75?"warn":"ok")}</div><b>${fm(a)}</b></div>`}).join("")||empty("No subject loads yet. The administrator assigns loads.","book")}</div>
   <div class="card"><h3>Needs grading</h3>${toGrade.slice(0,6).map(s=>`<div class="item"><div><b>${esc(nameOf(s.uid))}</b><div class="mut sm">${esc(actOf(s.actId)?.title||"")}</div></div><a class="btn sm" href="#/grade/${s.actId}">Grade</a></div>`).join("")||empty("Nothing to grade.","check")}</div></div>
   <div class="card" style="margin-top:14px"><h3>Recent submissions</h3>${tbl(["Student","Activity","Score","When"],recent.map(s=>[esc(nameOf(s.uid)),esc(actOf(s.actId)?.title||"—"),counted(s)?sp(s)+"%":"pending",fdate(ts(s.at))]),"No submissions yet.")}</div>
-  <h2 style="margin-top:20px">Announcements</h2>${await annHtml(3)}`;
+  <h2>Announcements</h2>${await annHtml(3)}`;
 };
 
 /* ---------- classes ---------- */
