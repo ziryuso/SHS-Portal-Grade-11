@@ -316,3 +316,6 @@ img.avatar{display:block}
 .brandh .logo-img.big{width:48px;height:48px}
 .authc{max-width:none;padding:14px 16px}
 .authc .tabs{margin-bottom:10px}
+
+.note{background:var(--warnb);color:var(--warn);border-radius:8px;padding:8px 10px;font-size:13px;margin-bottom:10px}
+.note .btn{margin-top:6px}
