@@ -233,6 +233,11 @@ pages.editor=async([loadId,actId])=>{
   <div class="card"><h3>Import a ready-made test</h3><p class="hint">One question per line: <code>type|question|options|answer|points</code> (points optional). Types: mc, tf, id, sa, mt, es. Separate options and alternative answers with <code>;</code>. For matching, put <code>left=right;left=right</code> in the options part.</p>
   <textarea id="bulk" rows="5" placeholder="mc|Capital of the Philippines?|Manila;Cebu;Davao|Manila&#10;tf|The sum of angles in a triangle is 180°.||True&#10;id|Largest ocean?||Pacific;Pacific Ocean&#10;mt|Match the ratio|Sine=opp/hyp;Cosine=adj/hyp&#10;es|Explain how you solved problem 3."></textarea>
   <p><button class="btn ghost" data-a="qimport">Import questions</button></p></div>
+  <div class="card"><h3>Paste a multiple-choice test (auto-graded)</h3>
+  <p class="hint">Paste a ready-made test straight from Word or Google Docs. Number each question, label choices A, B, C, D, and give the answer either under each question (<code>Answer: B</code>), by marking the correct choice with *, or in an <code>Answer key:</code> list at the end (<code>1.B 2.C 3.A</code>). Students' answers are checked automatically.</p>
+  <textarea id="mcbulk" rows="8" placeholder="1. What is 2 + 2?&#10;A. 3&#10;B. 4&#10;C. 5&#10;Answer: B&#10;&#10;2. Which is a prime number?&#10;A. 9&#10;B. 15&#10;*C. 7&#10;D. 21&#10;&#10;Answer key: 1.B 2.C"></textarea>
+  <div class="g2"><div><label class="f" for="mcpts">Points per question</label><input id="mcpts" type="number" min="1" max="100" value="1"></div></div>
+  <p><button class="btn" data-a="qmcimport">Add multiple-choice questions</button></p></div>
   <div class="sticky-save"><span class="mut sm" style="flex:1;align-self:center">${actId?"Changes are saved only when you click Save.":"Your draft is kept on this device while you work."}</span><button class="btn" data-a="esave">Save &amp; publish</button></div></div>`;
 };
 
@@ -254,6 +259,47 @@ act.qimport=()=>{
   $("#bulk").value=bad.length?lines.filter((_,i)=>bad.includes(i+1)).join("\n"):"";
   redraw();toast(`${n} question(s) imported${bad.length?`. Line(s) ${bad.join(", ")} had problems and were left in the box.`:"."}`,bad.length?"bad":"ok");
 };
+
+/* parse a pasted multiple-choice test into auto-graded questions */
+function parseMC(text,pts){
+  const lines=text.replace(/\r/g,"").split("\n").map(s=>s.trim());
+  const qs=[],errs=[];let cur=null,keys={},inKey=false;
+  const L=c=>c.toUpperCase().charCodeAt(0)-64;
+  const flush=()=>{if(!cur)return;qs.push(cur);cur=null};
+  for(const l of lines){
+    if(!l)continue;
+    const km=l.match(/^(?:answer\s*keys?|keys?|answers)\s*[:\-]?\s*(.*)$/i);
+    if(km&&(inKey||!cur||!/^answer\s*[:=-]\s*\(?[A-Ha-h]\)?\s*$/i.test(l))&&!/^(?:answer|ans)\s*[:=-]\s*\(?[A-Ha-h]\)?\s*$/i.test(l)){flush();inKey=true;l.replace(/^[^:\-]*[:\-]?/,"");}
+    if(inKey){for(const m of l.matchAll(/(\d+)\s*[.):\-]?\s*\(?([A-Ha-h])\)?(?![A-Za-z])/g))keys[+m[1]]=m[2].toUpperCase();continue}
+    const am=l.match(/^(?:answer|ans|correct(?:\s*answer)?)\s*[:=-]\s*\(?([A-Ha-h])\)?\b/i);
+    if(am&&cur){cur.ans=am[1].toUpperCase();continue}
+    const om=l.match(/^(\*?)\s*\(?([A-Ha-h])[.)]\s*(.+?)(\s*(?:\*|✓|✔))?$/);
+    if(om&&cur){cur.opts.push(om[3].trim());if(om[1]||om[4])cur.ans=om[2].toUpperCase();cur.letters.push(om[2].toUpperCase());continue}
+    const qm=l.match(/^(\d+)\s*[.)]\s*(.+)$/);
+    if(qm){flush();cur={n:+qm[1],p:qm[2].trim(),opts:[],letters:[],ans:""};continue}
+    if(cur&&!cur.opts.length)cur.p+="\n"+l;
+    else if(cur&&cur.opts.length)cur.opts[cur.opts.length-1]+=" "+l;
+  }
+  flush();
+  const out=[];
+  qs.forEach((q,i)=>{
+    const a=q.ans||keys[q.n]||keys[i+1]||"";
+    try{
+      if(!a)throw new Error("no answer given");
+      const idx=q.letters.indexOf(a);if(idx<0)throw new Error("answer letter not among choices");
+      out.push(mk("mc",q.p,pts,{o:q.opts,a:String(idx+1)}));
+    }catch(e){errs.push(`Q${q.n}: ${e.message}`)}
+  });
+  return {out,errs};
+}
+act.qmcimport=()=>{
+  const txt=$("#mcbulk").value.trim();if(!txt)return toast("Paste your test first.","bad");
+  const {out,errs}=parseMC(txt,+v("mcpts")||1);
+  if(!out.length)return toast(errs.length?"Nothing imported — "+errs.slice(0,3).join("; "):"No questions found. Number each question like “1.” and label choices A, B, C, D.","bad");
+  E.qs.push(...out);if(!errs.length)$("#mcbulk").value="";redraw();
+  toast(`${out.length} multiple-choice question(s) added${errs.length?`. Skipped: ${errs.slice(0,4).join("; ")}`:""}.`,errs.length?"bad":"ok");
+};
+
 act.esave=async el=>{
   readMeta();const m=E.meta;
   if(!m.title)return toast("Give the activity a title.","bad");
