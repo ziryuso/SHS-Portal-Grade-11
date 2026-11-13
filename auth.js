@@ -1,41 +1,109 @@
-import {auth,S,act,SCHOOL,$,v,esc,list,db,doc,setDoc,serverTimestamp,toast,errMsg,ic} from "./core.js";
-import {GoogleAuthProvider,signInWithPopup,signOut} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {auth,S,act,SCHOOL,$,v,esc,list,db,doc,setDoc,serverTimestamp,toast,errMsg} from "./core.js";
+import {GoogleAuthProvider,signInWithPopup,signOut,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-const hero=`<div class="hero"><div class="logo" style="width:56px;height:56px;font-size:22px">${esc(SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase())}</div>
-<h1>${esc(SCHOOL)}</h1><p>Learning portal for Senior High School — activities, materials and grades in one place.</p>
-<ul><li>Answer activities online and see your score right away</li><li>Download learning modules from your teachers</li><li>Track your progress in every subject</li></ul></div>`;
+const PEND="portal:pending";
+const ini=esc(SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase());
+const wrap=inner=>`<div class="auth1"><div class="card authc"><div class="authh"><div class="logo">${ini}</div><div><b>${esc(SCHOOL)}</b><div class="mut sm">Grade 11 Learning Portal</div></div></div>${inner}</div></div>`;
+const GMAIL=/^[^\s@]+@gmail\.com$/i;
+const alias=()=>"S-"+[...crypto.getRandomValues(new Uint8Array(6))].map(x=>x.toString(36)).join("").slice(0,6).toUpperCase();
+const authErr=e=>({
+  "auth/invalid-credential":"Wrong email or password.","auth/wrong-password":"Wrong email or password.","auth/user-not-found":"Wrong email or password.",
+  "auth/email-already-in-use":"That email already has an account. Use the Sign in tab.","auth/weak-password":"Password must be at least 6 characters.",
+  "auth/invalid-email":"That email address is not valid.","auth/too-many-requests":"Too many attempts. Please wait a few minutes and try again.",
+  "auth/operation-not-allowed":"Email/password sign-in is not turned on yet. In Firebase Console → Authentication → Sign-in method, enable Email/Password.",
+  "auth/popup-blocked":"Your browser blocked the sign-in window. Allow pop-ups and try again."
+}[e?.code]||errMsg(e));
+const quiet=e=>e?.code==="auth/popup-closed-by-user"||e?.code==="auth/cancelled-popup-request";
 
-export function loginView(){
-  $("#app").innerHTML=`<div class="auth">${hero}<div class="box"><div class="card">
-  <h2>Sign in</h2><p class="mut">Students, teachers and administrators sign in with their Google account.</p>
-  <button class="btn gbtn" data-a="login">${ic("shield")} Continue with Google</button>
-  <p class="hint">First time here? After signing in you will be asked to create your profile. Students are approved by their class adviser; teachers are approved by the administrator.</p></div></div></div>`;
+export async function loginView(){
+  let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch{}
+  $("#app").innerHTML=wrap(`<div class="tabs" role="tablist"><a href="#" id="t_in" class="on" data-a="authtab" data-id="in">Sign in</a><a href="#" id="t_up" data-a="authtab" data-id="up">Create account</a></div>
+  <div id="p_in">
+    <button class="btn gbtn" data-a="login"><b>G</b> Continue with Google</button>
+    <div class="or"><span>or use your Gmail and password</span></div>
+    <label class="f" for="em">Gmail address</label><input id="em" type="email" autocomplete="username" placeholder="name@gmail.com">
+    <label class="f" for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
+    <p><button class="btn gbtn" data-a="emlogin">Sign in</button></p>
+    <p class="right sm"><a href="#" data-a="forgot">Forgot password?</a></p>
+  </div>
+  <div id="p_up" style="display:none">
+    <label class="f" for="role">I am a</label><select id="role" onchange="document.getElementById('stuf').style.display=this.value==='student'?'':'none'"><option value="student">Student</option><option value="teacher">Teacher</option></select>
+    <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" autocomplete="name">
+    <div id="stuf"><label class="f" for="sec">Section enrolled</label>
+    <select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet — ask your adviser</option>`}</select>
+    <label class="f" for="lrn">LRN (12 digits, optional)</label><input id="lrn" inputmode="numeric" maxlength="12" placeholder="123456789012"></div>
+    <div class="or"><span>choose how to sign up</span></div>
+    <button class="btn gbtn" data-a="upgoogle"><b>G</b> Sign up with Google</button>
+    <p class="mut sm" style="text-align:center;margin:10px 0 0">or with a Gmail address and password</p>
+    <label class="f" for="em2">Gmail address</label><input id="em2" type="email" autocomplete="username" placeholder="name@gmail.com">
+    <label class="f" for="pw2">Create a password (6+ characters)</label><input id="pw2" type="password" autocomplete="new-password">
+    <p><button class="btn gbtn" data-a="upemail">Create account</button></p>
+    <p class="hint">Students are approved by their class adviser. Teachers are approved by the administrator.</p>
+  </div>`);
 }
-act.login=async()=>{try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(e.code!=="auth/popup-closed-by-user"&&e.code!=="auth/cancelled-popup-request")toast(e.code==="auth/popup-blocked"?"Your browser blocked the sign-in window. Allow pop-ups and try again.":errMsg(e),"bad")}};
+act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none";$("#t_in").classList.toggle("on",!up);$("#t_up").classList.toggle("on",up)};
+
+act.login=async()=>{sessionStorage.removeItem(PEND);try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(!quiet(e))toast(authErr(e),"bad")}};
+act.emlogin=async()=>{
+  const em=v("em"),pw=$("#pw").value;if(!em||!pw)return toast("Enter your Gmail address and password.","bad");
+  sessionStorage.removeItem(PEND);
+  try{await signInWithEmailAndPassword(auth,em,pw)}catch(e){toast(authErr(e),"bad")}
+};
+act.forgot=async()=>{
+  const em=v("em");if(!em)return toast("Type your Gmail address above first.","bad");
+  try{await sendPasswordResetEmail(auth,em)}catch(e){if(e.code==="auth/invalid-email")return toast(authErr(e),"bad")}
+  toast("If that address has an account, a reset link was sent. Check your inbox and spam folder.");
+};
+function readProfile(){
+  const role=v("role"),name=v("nm"),p={role,name};
+  if(name.length<4)throw new Error("Please type your full name.");
+  if(role==="student"){
+    if(!v("sec"))throw new Error("Choose your section.");
+    if(v("lrn")&&!/^\d{12}$/.test(v("lrn")))throw new Error("LRN must be exactly 12 digits.");
+    p.sectionId=v("sec");if(v("lrn"))p.lrn=v("lrn");
+  }
+  return p;
+}
+act.upgoogle=async()=>{
+  let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
+  sessionStorage.setItem(PEND,JSON.stringify(p));
+  try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){sessionStorage.removeItem(PEND);if(!quiet(e))toast(authErr(e),"bad")}
+};
+act.upemail=async()=>{
+  let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
+  const em=v("em2"),pw=$("#pw2").value;
+  if(!GMAIL.test(em))return toast("Please use a Gmail address (name@gmail.com).","bad");
+  if(pw.length<6)return toast("Password must be at least 6 characters.","bad");
+  sessionStorage.setItem(PEND,JSON.stringify(p));
+  try{await createUserWithEmailAndPassword(auth,em,pw)}catch(e){sessionStorage.removeItem(PEND);toast(authErr(e),"bad")}
+};
 act.out=async()=>{await signOut(auth);S.me=null;location.hash=""};
 
+/* profile saved from the Create-account tab; returns null if the user came another way */
+export async function autoRegister(u){
+  let p=null;try{p=JSON.parse(sessionStorage.getItem(PEND))}catch{}
+  if(!p)return null;sessionStorage.removeItem(PEND);
+  const d={email:u.email,name:p.name||u.displayName||"",role:p.role,status:"pending"};
+  if(p.role==="student"){d.sectionId=p.sectionId;d.alias=alias();if(p.lrn)d.lrn=p.lrn}
+  await setDoc(doc(db,"users",u.uid),{...d,createdAt:serverTimestamp()});
+  return d;
+}
+
+/* fallback: signed in but no profile yet (e.g. used Google on the Sign in tab) */
 export async function registerView(u){
-  let secs=[];try{secs=await list("sections")}catch(e){toast(errMsg(e),"bad")}
-  secs.sort((a,b)=>a.name.localeCompare(b.name));
-  $("#app").innerHTML=`<div class="auth">${hero}<div class="box"><div class="card">
-  <h2>Create your profile</h2><p class="mut">${esc(u.email)}</p>
-  <label class="f" for="role">I am a</label><select id="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>
-  <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" value="${esc(u.displayName)}" autocomplete="name">
+  let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch(e){toast(errMsg(e),"bad")}
+  $("#app").innerHTML=wrap(`<h2>Finish your profile</h2><p class="mut">${esc(u.email)}</p>
+  <label class="f" for="role">I am a</label><select id="role" onchange="document.getElementById('stuf').style.display=this.value==='student'?'':'none'"><option value="student">Student</option><option value="teacher">Teacher</option></select>
+  <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" value="${esc(u.displayName||"")}" autocomplete="name">
   <div id="stuf"><label class="f" for="sec">Section enrolled</label>
   <select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet — ask your adviser</option>`}</select>
-  <label class="f" for="lrn">LRN (12 digits, optional)</label><input id="lrn" inputmode="numeric" maxlength="12" placeholder="e.g. 123456789012"></div>
-  <p><button class="btn" data-a="reg" style="width:100%">Submit for approval</button></p>
-  <p><button class="btn ghost" data-a="out" style="width:100%">Cancel and sign out</button></p></div></div></div>`;
-  $("#role").onchange=e=>$("#stuf").style.display=e.target.value==="student"?"":"none";
+  <label class="f" for="lrn">LRN (12 digits, optional)</label><input id="lrn" inputmode="numeric" maxlength="12"></div>
+  <p><button class="btn gbtn" data-a="reg">Submit for approval</button></p>
+  <p><button class="btn ghost gbtn" data-a="out">Cancel and sign out</button></p>`);
   act.reg=async el=>{
-    const role=v("role"),name=v("nm"),d={email:u.email,name,role,status:"pending",createdAt:serverTimestamp()};
-    if(name.length<4)return toast("Please type your full name.","bad");
-    if(role==="student"){
-      if(!v("sec"))return toast("Choose your section.","bad");
-      if(v("lrn")&&!/^\d{12}$/.test(v("lrn")))return toast("LRN must be exactly 12 digits.","bad");
-      d.sectionId=v("sec");d.alias="S-"+[...crypto.getRandomValues(new Uint8Array(4))].map(x=>x.toString(36)).join("").slice(0,6).toUpperCase();
-      if(v("lrn"))d.lrn=v("lrn");
-    }
+    let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
+    const d={email:u.email,name:p.name,role:p.role,status:"pending",createdAt:serverTimestamp()};
+    if(p.role==="student"){d.sectionId=p.sectionId;d.alias=alias();if(p.lrn)d.lrn=p.lrn}
     el.disabled=true;
     try{await setDoc(doc(db,"users",u.uid),d);location.reload()}catch(e){el.disabled=false;toast(errMsg(e),"bad")}
   };
@@ -43,14 +111,13 @@ export async function registerView(u){
 
 export function waitView(me){
   const inactive=me.status==="inactive";
-  $("#app").innerHTML=`<div class="auth">${hero}<div class="box"><div class="card"><h2>${inactive?"Account deactivated":"Waiting for approval"}</h2>
-  <p>${inactive?"Your account is currently inactive. Please contact the school administrator.":me.role==="teacher"?"The administrator needs to approve your teacher account.":"Your class adviser needs to approve your enrollment."}</p>
+  $("#app").innerHTML=wrap(`<h2>${inactive?"Account deactivated":"Waiting for approval"}</h2>
+  <p>${inactive?"Your account is inactive. Please contact the school administrator.":me.role==="teacher"?"The administrator needs to approve your teacher account.":"Your class adviser needs to approve your enrollment."}</p>
   <p class="mut sm">${esc(me.email)}</p>
-  ${inactive?"":`<p><button class="btn" onclick="location.reload()" style="width:100%">Check again</button></p>`}
-  <p><button class="btn ghost" data-a="out" style="width:100%">Sign out</button></p></div></div></div>`;
+  ${inactive?"":`<p><button class="btn gbtn" onclick="location.reload()">Check again</button></p>`}
+  <p><button class="btn ghost gbtn" data-a="out">Sign out</button></p>`);
 }
-
 export function errorView(e){
-  $("#app").innerHTML=`<div class="auth"><div class="box" style="grid-column:1/-1"><div class="card"><h2>Could not load the portal</h2><p>${esc(errMsg(e))}</p>
-  <p><button class="btn" onclick="location.reload()">Reload</button> <button class="btn ghost" data-a="out">Sign out</button></p></div></div></div>`;
+  $("#app").innerHTML=wrap(`<h2>Could not load the portal</h2><p>${esc(errMsg(e))}</p>
+  <p><button class="btn gbtn" onclick="location.reload()">Reload</button></p><p><button class="btn ghost gbtn" data-a="out">Sign out</button></p>`);
 }
