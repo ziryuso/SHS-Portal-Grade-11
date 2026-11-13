@@ -360,3 +360,10 @@ input[data-ph],textarea[data-ph]{margin-top:10px}
   table:not(.rec) td .row{justify-content:flex-start}
   table:not(.rec) td .badge{white-space:nowrap}
 }
+
+/* compact gray action buttons (Edit, Delete, Approve, Duplicate, ...) */
+.btn.sm,button.btn.sm,a.btn.sm{background:#e5e7eb;color:#374151;border:1px solid #d1d5db;padding:2px 9px;min-height:26px;font-size:12px;font-weight:600;border-radius:6px;gap:4px;filter:none}
+.btn.sm:hover,.btn.sm.ghost:hover,.btn.sm.danger:hover,.btn.sm.ok:hover{background:#d1d5db;color:#111827;filter:none}
+.btn.sm.ghost,.btn.sm.danger,.btn.sm.ok{background:#e5e7eb;color:#374151;border-color:#d1d5db}
+.btn.sm svg{width:13px;height:13px}
+@media(max-width:640px){.btn.sm,button.btn.sm,a.btn.sm{min-height:28px;padding:2px 10px;font-size:12px}.item>.row .btn{flex:0 1 auto}}
