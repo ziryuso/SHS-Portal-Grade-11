@@ -41,9 +41,9 @@ const initials=SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase(
 function buildShell(){
   const R=roles[S.me.role],items=R.nav();
   const links=cls=>items.map(n=>`<a href="#/${n.k}" data-k="${n.k}" data-m="${(n.m||[]).join(",")}">${ic(n.i)}<span>${esc(n.l)}</span></a>`).join("");
-  $("#app").innerHTML=`<div class="app"><aside class="side"><div class="brand"><div class="logo">${esc(initials)}</div><div><b>${esc(SCHOOL)}</b><span>Grade 11 Learning Portal</span></div></div>
+  $("#app").innerHTML=`<div class="app"><aside class="side"><div class="brand"><img class="logo-img" src="logo.jpg" alt="School logo"><div><b>${esc(SCHOOL)}</b><span>Grade 11 Learning Portal</span></div></div>
   <nav aria-label="Main">${links()}</nav><nav><a href="#" data-a="out">${ic("out")}<span>Log out</span></a></nav><div class="foot">${S.set.schoolYear?"SY "+esc(S.set.schoolYear):""} ${esc(S.set.term)}</div></aside>
-  <div class="main-col"><header class="top"><div class="ttl hide-m">${esc(SCHOOL)}</div><div class="ttl show-m">${esc(SCHOOL)}</div><div class="chipu"><div class="who"><b>${esc(S.me.name)}</b><small>${esc(S.me.role[0].toUpperCase()+S.me.role.slice(1))}</small></div><div class="avatar">${esc((S.me.name||"?")[0])}</div></div></header>
+  <div class="main-col"><header class="top"><div class="ttl hide-m">${esc(SCHOOL)}</div><div class="ttl show-m"><img class="logo-img sm" src="logo.jpg" alt="">${esc(SCHOOL)}</div><div class="chipu"><div class="who"><b>${esc(S.me.name)}</b><small>${esc(S.me.role[0].toUpperCase()+S.me.role.slice(1))}</small></div><div class="avatar">${esc((S.me.name||"?")[0])}</div></div></header>
   <main id="main" tabindex="-1"></main></div></div><nav class="bottom" aria-label="Main">${links()}<a href="#" data-a="out">${ic("out")}<span>Log out</span></a></nav>`;
 }
 function markNav(name){
