@@ -252,3 +252,11 @@ details.card>summary{cursor:pointer;font-weight:600}
 .auth1{background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,.6)),url("login-bg.jpg") center bottom/cover no-repeat fixed,#fff}
 .authc{background:rgba(255,255,255,.96);box-shadow:0 8px 30px rgba(16,24,40,.12)}
 @media(max-width:900px){.auth1{background-attachment:scroll}}
+
+/* compact create-account */
+.g2c{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+#p_up .f{margin:8px 0 3px}
+details.alt{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+details.alt summary{cursor:pointer;color:var(--pri);font-weight:600;font-size:14px}
+details.alt input{margin-top:8px}details.alt .btn{margin-top:8px}
+@media(max-width:420px){.g2c{grid-template-columns:1fr}}
