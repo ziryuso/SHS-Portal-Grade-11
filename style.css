@@ -345,3 +345,18 @@ img.avatar{display:block}
 label.f.ph{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;margin:0;padding:0}
 input[data-ph],textarea[data-ph]{margin-top:10px}
 .g2>div>input[data-ph]:only-child,.g2>div>textarea[data-ph]:only-child{margin-top:0}
+
+/* phones: tables become stacked cards (class-record tables keep side scrolling) */
+@media(max-width:640px){
+  .tw:has(table:not(.rec)){border:0;overflow:visible;background:none}
+  table:not(.rec),table:not(.rec) tbody{display:block;background:none}
+  table:not(.rec) thead{display:none}
+  table:not(.rec) tr{display:block;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:10px;padding:4px 12px}
+  table:not(.rec) td{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);text-align:right;overflow-wrap:anywhere;word-break:normal}
+  table:not(.rec) td:last-child{border-bottom:0}
+  table:not(.rec) td::before{content:attr(data-l);flex:0 0 auto;max-width:42%;text-align:left;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--mut)}
+  table:not(.rec) td[data-l=""]{justify-content:flex-start;flex-wrap:wrap}
+  table:not(.rec) td[data-l=""]::before{display:none}
+  table:not(.rec) td .row{justify-content:flex-start}
+  table:not(.rec) td .badge{white-space:nowrap}
+}
