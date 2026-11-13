@@ -260,3 +260,11 @@ details.alt{margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
 details.alt summary{cursor:pointer;color:var(--pri);font-weight:600;font-size:14px}
 details.alt input{margin-top:8px}details.alt .btn{margin-top:8px}
 @media(max-width:420px){.g2c{grid-template-columns:1fr}}
+
+/* school logo */
+.logo-img{width:42px;height:42px;border-radius:50%;background:#fff;object-fit:contain;flex:none}
+.logo-img.big{width:64px;height:64px}
+.logo-img.sm{width:30px;height:30px}
+.side .logo-img{padding:1px;box-shadow:0 0 0 2px rgba(255,255,255,.25)}
+.show-m{display:none;align-items:center;gap:8px}
+@media(max-width:900px){.show-m{display:flex;font-size:14px;line-height:1.2}}
