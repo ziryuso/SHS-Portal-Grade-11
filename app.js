@@ -1,6 +1,6 @@
 import {auth,db,S,act,chg,$,$$,esc,doc,getDoc,setDoc,list,where,serverTimestamp,toast,errMsg,ic,SCHOOL,ADMIN_EMAILS} from "./core.js";
 import {onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {loginView,registerView,waitView,errorView} from "./auth.js";
+import {loginView,registerView,waitView,errorView,autoRegister} from "./auth.js";
 import * as student from "./student.js";
 import * as teacher from "./teacher.js";
 import * as admin from "./admin.js";
@@ -17,7 +17,11 @@ onAuthStateChanged(auth,async u=>{
     else if(ADMIN_EMAILS.includes(u.email)&&u.emailVerified){
       const d={email:u.email,name:u.displayName||"Administrator",role:"admin",status:"approved",createdAt:serverTimestamp()};
       await setDoc(doc(db,"users",u.uid),d);S.me={uid:u.uid,...d};
-    }else return registerView(u);
+    }else{
+      const d=await autoRegister(u);
+      if(!d)return registerView(u);
+      S.me={uid:u.uid,...d};
+    }
     if(S.me.status!=="approved")return waitView(S.me);
     await boot();
   }catch(e){console.error(e);errorView(e)}
