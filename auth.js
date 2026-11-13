@@ -27,18 +27,15 @@ export async function loginView(){
     <p class="right sm"><a href="#" data-a="forgot">Forgot password?</a></p>
   </div>
   <div id="p_up" style="display:none">
-    <label class="f" for="role">I am a</label><select id="role" onchange="document.getElementById('stuf').style.display=this.value==='student'?'':'none'"><option value="student">Student</option><option value="teacher">Teacher</option></select>
-    <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" autocomplete="name">
-    <div id="stuf"><label class="f" for="sec">Section enrolled</label>
-    <select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet — ask your adviser</option>`}</select>
-    <label class="f" for="lrn">LRN (12 digits, optional)</label><input id="lrn" inputmode="numeric" maxlength="12" placeholder="123456789012"></div>
-    <div class="or"><span>choose how to sign up</span></div>
-    <button class="btn gbtn" data-a="upgoogle"><b>G</b> Sign up with Google</button>
-    <p class="mut sm" style="text-align:center;margin:10px 0 0">or with a Gmail address and password</p>
-    <label class="f" for="em2">Gmail address</label><input id="em2" type="email" autocomplete="username" placeholder="name@gmail.com">
-    <label class="f" for="pw2">Create a password (6+ characters)</label><input id="pw2" type="password" autocomplete="new-password">
-    <p><button class="btn gbtn" data-a="upemail">Create account</button></p>
-    <p class="hint">Students are approved by their class adviser. Teachers are approved by the administrator.</p>
+    <div class="g2c"><div><label class="f" for="role">I am a</label><select id="role" onchange="document.getElementById('stuf').style.display=this.value==='student'?'':'none'"><option value="student">Student</option><option value="teacher">Teacher</option></select></div>
+    <div id="stuf"><label class="f" for="sec">Section</label><select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet</option>`}</select></div></div>
+    <label class="f" for="nm">Full name (Last, First M.I.)</label><input id="nm" autocomplete="name">
+    <p style="margin-top:14px"><button class="btn gbtn" data-a="upgoogle"><b>G</b> Sign up with Google</button></p>
+    <details class="alt"><summary>Use Gmail and password instead</summary>
+      <input id="em2" type="email" autocomplete="username" placeholder="name@gmail.com" aria-label="Gmail address">
+      <input id="pw2" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password">
+      <button class="btn ghost gbtn" data-a="upemail">Create account</button></details>
+    <p class="hint" style="text-align:center">Your adviser or the administrator will approve your account.</p>
   </div>`);
 }
 act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none";$("#t_in").classList.toggle("on",!up);$("#t_up").classList.toggle("on",up)};
@@ -97,7 +94,7 @@ export async function registerView(u){
   <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" value="${esc(u.displayName||"")}" autocomplete="name">
   <div id="stuf"><label class="f" for="sec">Section enrolled</label>
   <select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet — ask your adviser</option>`}</select>
-  <label class="f" for="lrn">LRN (12 digits, optional)</label><input id="lrn" inputmode="numeric" maxlength="12"></div>
+  </div>
   <p><button class="btn gbtn" data-a="reg">Submit for approval</button></p>
   <p><button class="btn ghost gbtn" data-a="out">Cancel and sign out</button></p>`);
   act.reg=async el=>{
