@@ -200,3 +200,49 @@ tbody tr:hover{background:#f7f9fe}
   dialog.modal .end .btn{flex:1}
 }
 @media(max-width:380px){.cards{grid-template-columns:1fr}}
+
+/* ===== plain & simple + flexible boxes ===== */
+:root{--sh:0 1px 2px rgba(16,24,40,.04);--r:12px}
+body{background:#fff}
+/* one accent colour; status colours only for status */
+.cards .card .si,.cards .card:nth-child(n) .si{background:var(--soft);color:var(--pri)}
+.stat.ok .si{background:var(--okb)!important;color:var(--ok)!important}
+.stat.warn .si{background:var(--warnb)!important;color:var(--warn)!important}
+.stat.bad .si{background:var(--badb)!important;color:var(--bad)!important}
+.subj,.cards .subj:nth-child(n){border-top:1px solid var(--line)}
+.cards .subj:nth-child(n) .chip{background:var(--soft);color:var(--pri)}
+.card:hover{border-color:var(--line)}
+.banner{background:var(--soft);color:var(--ink);border:1px solid var(--line);box-shadow:none;padding:18px 20px}
+.banner h1{color:var(--ink)}.banner p{opacity:1;color:var(--mut)}
+.banner .pill{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.top{box-shadow:none}
+.btn:hover{filter:none;background:var(--pri2)}.btn.ghost:hover{background:var(--soft)}.btn.danger:hover{background:#991b1b}.btn.ok:hover{background:#166534}
+.bar{height:6px}
+
+/* boxes grow with their content */
+.card,.item,.qrow,.cols>*,.cards>*,.g2>*{min-width:0;height:auto}
+.card,.item,td,th,.qp,.ann p,.badge{overflow-wrap:anywhere}
+.card p,.ann p,.item .mut,.txt,.subj p{white-space:pre-wrap}
+.item>div:first-child{flex:1 1 220px;min-width:0}
+.cols{grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr))}
+.cards{grid-template-columns:repeat(auto-fill,minmax(min(100%,230px),1fr))}
+.cards .subj{grid-column:auto}
+.g2{grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr))}
+textarea{resize:vertical;min-height:90px;max-height:60vh}
+th{white-space:normal}
+.tw{max-width:100%}
+.qrow .txt{flex:1 1 260px}
+.badge{white-space:normal}
+details.card>summary{cursor:pointer;font-weight:600}
+
+/* single-page sign-in */
+.auth1{min-height:100vh;display:grid;place-items:center;padding:20px;background:#fff}
+.authc{width:100%;max-width:440px;margin:0;box-shadow:0 1px 3px rgba(16,24,40,.08)}
+.authh{display:flex;gap:12px;align-items:center;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.authh .logo{color:#fff}
+.or{display:flex;align-items:center;gap:10px;color:var(--mut);font-size:13px;margin:14px 0 2px}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+.gbtn{width:100%!important}
+.gbtn b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#fff;color:#1d4ed8;font-size:13px}
+.btn.ghost.gbtn b{background:var(--soft)}
+@media(max-width:640px){.auth1{padding:12px;place-items:start center}.cards .subj{grid-column:1/-1}}
