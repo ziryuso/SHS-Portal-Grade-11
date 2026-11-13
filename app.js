@@ -37,7 +37,7 @@ async function boot(){
 }
 
 /* ---------- shell ---------- */
-const TITLE=`<span class="t1">TTVHS</span> <span class="t2"><span class="xs-hide">Senior High School </span>Student Portal</span>`;
+const TITLE=`<span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span>`;
 function buildShell(){
   const R=roles[S.me.role],items=R.nav();
   const links=items.map(n=>`<a href="#/${n.k}" data-k="${n.k}" data-m="${(n.m||[]).join(",")}">${ic(n.i)}<span>${esc(n.l)}</span></a>`).join("");
