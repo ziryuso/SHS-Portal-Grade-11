@@ -16,9 +16,10 @@ async function data(){
     list("loads",where("sectionId","==",sid)),list("subjects"),
     list("activities",where("sectionId","==",sid)),
     list("submissions",where("uid","==",S.me.uid)),list("sections")]);
-  const A=acts.filter(a=>a.v===2).sort((a,b)=>(a.closes||9e15)-(b.closes||9e15));
+  const A=acts.filter(a=>a.v===2&&!a.draft).sort((a,b)=>(a.closes||9e15)-(b.closes||9e15));
   return {loads,subjects,acts:A,subs,sm:Object.fromEntries(subs.map(x=>[x.actId,x])),sec:secs.find(x=>x.id===sid)};
 }
+const linksHtml=a=>(a.links||[]).length?`<div class="row" style="margin-top:6px">${a.links.map(l=>`<a class="btn sm ghost" href="${esc(l.u)}" target="_blank" rel="noopener noreferrer">${ic("file")} ${esc(l.t||"Open file")}</a>`).join("")}</div>`:"";
 const dkey=id=>"draft2:"+S.me.uid+":"+id;
 const getDraft=id=>{try{return JSON.parse(localStorage.getItem(dkey(id)))}catch{return null}};
 const putDraft=(id,d)=>{try{localStorage.setItem(dkey(id),JSON.stringify(d))}catch{}};
@@ -81,11 +82,14 @@ pages.subject=async([id])=>{
   const as=d.acts.filter(a=>a.loadId===id);
   return head(subjName(d,l),l.teacherName?"Teacher: "+l.teacherName:"",`<a class="btn ghost" href="#/subjects">← Subjects</a>`)+
   `<div class="card"><h3>Learning materials</h3>${mats.map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open / Download</a></div>`).join("")||empty("No materials posted yet.")}</div>
-  <div class="card"><h3>Activities</h3>${as.map(a=>{const s=d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
+  ${(()=>{if(!as.length)return `<div class="card"><h3>Classwork</h3>${empty("No activities posted yet.","list")}</div>`;
+    const groups={};as.forEach(a=>(groups[a.topic||""]??=[]).push(a));
+    const keys=Object.keys(groups).sort((x,y)=>!x?1:!y?-1:x.localeCompare(y));
+    return keys.map(t=>`<div class="card"><h3>${t?esc(t):"Classwork"}</h3>${groups[t].map(a=>{const s=d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
     return `<div class="item"><div style="min-width:0"><b>${esc(a.title)}</b> ${badge(lb,k)}
-    <div class="mut sm">${a.opens&&Date.now()<a.opens?"Opens "+fdate(a.opens)+" · ":""}${dueTxt(a)} · ${a.questions.length} items · ${a.timeLimit?a.timeLimit+" min · ":""}${Math.max(0,a.attempts-used)} attempt(s) left</div>
-    ${s?`<div class="sm"><b>Score:</b> ${scoreTxt(s)}</div>`:""}</div>
-    <div class="row">${st==="open"||st==="progress"||st==="retake"?`<a class="btn sm" href="#/take/${a.id}">${st==="progress"?"Resume":st==="retake"?"Retake":"Start"}</a>`:""}${s?`<a class="btn sm ghost" href="#/result/${a.id}">Result</a>`:""}</div></div>`}).join("")||empty("No activities posted yet.","list")}</div>`;
+    <div class="mut sm">${a.opens&&Date.now()<a.opens?"Opens "+fdate(a.opens)+" · ":""}${dueTxt(a)} · ${a.questions.length} items · ${a.totalPts} pts · ${a.timeLimit?a.timeLimit+" min · ":""}${Math.max(0,a.attempts-used)} attempt(s) left</div>
+    ${s?`<div class="sm"><b>Score:</b> ${scoreTxt(s)}</div>`:""}${linksHtml(a)}</div>
+    <div class="row">${st==="open"||st==="progress"||st==="retake"?`<a class="btn sm" href="#/take/${a.id}">${st==="progress"?"Resume":st==="retake"?"Retake":"Start"}</a>`:""}${s?`<a class="btn sm ghost" href="#/result/${a.id}">Result</a>`:""}</div></div>`}).join("")}</div>`).join("")})()}`;
 };
 
 /* ---------- take an activity ---------- */
@@ -103,7 +107,7 @@ function qCard(a,qi,pos,dr){
     inp=q.l.map((l,j)=>`<div class="mrow"><span>${esc(l)}</span><select data-q="${qi}" data-j="${j}"><option value="">Choose…</option>${rs.map(k=>`<option value="${esc(q.r[k])}" ${Array.isArray(x)&&x[j]===q.r[k]?"selected":""}>${esc(q.r[k])}</option>`).join("")}</select></div>`).join("")}
   else if(q.t==="es")inp=`<textarea data-q="${qi}" rows="6" placeholder="Write your answer here">${esc(x||"")}</textarea>`;
   else inp=`<input data-q="${qi}" value="${esc(x||"")}" placeholder="Type your answer" autocomplete="off">`;
-  return `<section class="card qc" data-i="${pos}"><div class="row between"><b>Question ${pos+1}</b><span class="mut sm">${qMax(q)} pt${qMax(q)>1?"s":""}</span></div><p class="qp">${esc(q.p)}</p>${inp}</section>`;
+  return `<section class="card qc" data-i="${pos}"><div class="row between"><b>Question ${pos+1}</b><span class="mut sm">${qMax(q)} pt${qMax(q)>1?"s":""}</span></div><p class="qp">${esc(q.p)}</p>${q.img?`<img class="qimg" src="${q.img}" alt="Picture for question ${pos+1}">`:""}${inp}</section>`;
 }
 
 pages.take=async([id])=>{
@@ -150,7 +154,7 @@ pages.take=async([id])=>{
   <div class="row">${isFinite(dl())?`<span class="timer" id="tmw">${ic("clock")}<span id="tm">--:--</span></span>`:""}<button class="btn" id="sbtn" data-a="runSubmit">Submit</button></div></div>
   <div class="bar"><i id="pgb" style="width:0"></i></div><div class="row between sm"><span id="pgt"></span><button class="btn ghost sm" id="qmode" data-a="qmode">${mode==="one"?"Show all questions":"One question at a time"}</button></div>
   <div class="qnav">${dr.ord.map((qi,pos)=>`<button class="chipq" data-q="${qi}" data-a="qjump" data-i="${pos}" aria-label="Go to question ${pos+1}">${pos+1}</button>`).join("")}</div></div>
-  ${a.instructions?`<div class="card"><b>Instructions</b><p style="white-space:pre-wrap">${esc(a.instructions)}</p></div>`:""}
+  ${a.instructions||(a.links||[]).length?`<div class="card"><b>Instructions</b>${a.instructions?`<p style="white-space:pre-wrap">${esc(a.instructions)}</p>`:""}${linksHtml(a)}</div>`:""}
   <div id="run" class="${mode==="one"?"one":""}">${dr.ord.map((qi,pos)=>qCard(a,qi,pos,dr)).join("")}
   <div id="qpn" class="row between" style="display:${mode==="one"?"flex":"none"}"><button class="btn ghost" data-a="qgo" data-d="-1">← Previous</button><button class="btn ghost" data-a="qgo" data-d="1">Next →</button></div></div>
   <div class="card"><button class="btn" data-a="runSubmit">Submit answers</button> <a class="btn ghost" href="${back}">Save &amp; leave (answers are autosaved)</a></div>`;
@@ -200,7 +204,7 @@ pages.result=async([id])=>{
       else if(q.t==="mt"){cls+=r===1?"good":r>0?"part":"wrong";
         body=q.l.map((l,j)=>{const ok=norm(x?.[j])===norm(k?.[j]);return `<div class="sm ${ok?"ok":"bad"}">${esc(l)} → ${esc(x?.[j]||"(blank)")}${ok?" ✓":` ✗ (correct: ${esc(k?.[j]||"")})`}</div>`}).join("")}
       else{cls+=r===1?"good":"wrong";body=`<div>Your answer: <b class="${r===1?"ok":"bad"}">${esc(x||"(blank)")}</b></div>${r===1?"":`<div>Correct answer: <b>${esc(String(k||"").split("|").join(" / "))}</b></div>`}`}
-      return `<div class="card ${cls}"><b>${i+1}. ${esc(q.p)}</b>${body}</div>`}).join("");
+      return `<div class="card ${cls}"><b>${i+1}. ${esc(q.p)}</b>${q.img?`<img class="qimg" src="${q.img}" alt="">`:""}${body}</div>`}).join("");
   }
   const left=Math.max(0,a.attempts-s.attempts);
   return head(a.title,"",`<a class="btn ghost" href="${back}">← Back to subject</a>`)+
