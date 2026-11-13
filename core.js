@@ -63,7 +63,7 @@ export const bar=(p,k="")=>`<div class="bar" role="progressbar" aria-valuenow="$
 export const stat=(label,value,sub="",icon="chart",tone="")=>`<div class="card"><div class="stat ${tone}"><div class="si">${ic(icon)}</div><div><div class="sv">${value}</div><div class="sl">${esc(label)}</div>${sub?`<div class="ss">${esc(sub)}</div>`:""}</div></div></div>`;
 export const head=(title,sub="",actions="")=>`<div class="ph"><div><h1>${esc(title)}</h1>${sub?`<p class="mut">${esc(sub)}</p>`:""}</div><div class="row noprint">${actions}</div></div>`;
 export const empty=(msg,icon="file")=>`<div class="empty">${ic(icon)}<p>${esc(msg)}</p></div>`;
-export const tbl=(h,rows,emptyMsg="No records yet.",cls="")=>rows.length?`<div class="tw"><table class="${cls}"><thead><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr ${Array.isArray(r)?"":r.attr||""}>${(Array.isArray(r)?r:r.c).map((c,i)=>`<td data-l="${esc(String(h[i]??"").replace(/<[^>]*>/g,""))}">${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:empty(emptyMsg);
+export const tbl=(h,rows,emptyMsg="No records yet.",cls="")=>rows.length?`<div class="tw"><table class="${cls}"><thead><tr>${h.map(x=>`<th>${x}</th>`).join("")}</tr></thead><tbody>${rows.map(r=>`<tr ${Array.isArray(r)?"":r.attr||""}>${(Array.isArray(r)?r:r.c).map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`:empty(emptyMsg);
 export const btn=(a,l,id="",cls="",extra="")=>`<button class="btn sm ${cls}" data-a="${a}" data-id="${esc(id)}" ${extra}>${l}</button>`;
 
 export function toast(msg,kind="ok"){

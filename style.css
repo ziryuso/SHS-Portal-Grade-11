@@ -339,14 +339,3 @@ img.avatar{display:block}
 .seg{border:1px solid var(--line);background:var(--card);color:var(--mut);padding:8px 14px;border-radius:999px;font:inherit;font-weight:600;cursor:pointer}
 .seg.on{background:var(--soft);color:var(--pri);border-color:var(--pri)}
 .item.cw{align-items:flex-start}
-
-/* floating profile panel */
-.pmpanel{width:340px;max-width:calc(100vw - 24px);padding:14px;max-height:calc(100vh - 80px);overflow-y:auto}
-.pmpanel [hidden]{display:none!important}
-.pfh{display:flex;gap:12px;align-items:center;margin-bottom:10px}
-.pfw{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere;line-height:1.3}
-.pfb{margin-bottom:6px}
-.pfs{border-top:1px solid var(--line);margin-top:10px;padding-top:6px}
-.pfs h4{margin:6px 0 2px}
-.pfe{justify-content:flex-end;margin-top:12px}
-.pfl{border-top:1px solid var(--line);margin-top:12px;padding-top:6px}

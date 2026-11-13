@@ -4,7 +4,6 @@ import {loginView,registerView,waitView,errorView,autoRegister} from "./auth.js"
 import * as student from "./student.js";
 import * as teacher from "./teacher.js";
 import * as admin from "./admin.js";
-import {panelHtml} from "./profile.js";
 
 const roles={student,teacher,admin};
 let booted=false,tok=0;
@@ -46,7 +45,7 @@ function buildShell(){
   <nav aria-label="Main">${links}</nav><div class="foot">${S.set.schoolYear?"SY "+esc(S.set.schoolYear):""} ${esc(S.set.term)}</div></aside>
   <div class="main-col"><header class="top"><div class="ttl"><img class="logo-img sm m-only" src="logo.jpg" alt="">${TITLE}</div>
   <div class="pm"><button class="chipu" data-a="pmenu" aria-haspopup="true" aria-expanded="false" aria-label="Account menu"><div class="who"><b>${esc(S.me.name)}</b></div>${avatar(S.me)}</button>
-  <div class="pmenu pmpanel" id="pmenu" hidden></div></div></header>
+  <div class="pmenu" id="pmenu" hidden><div class="pmh"><b>${esc(S.me.name)}</b><span>${esc(S.me.email||"")}</span></div><a href="#/profile" data-a="pgo">${ic("users")}<span>View profile</span></a><a href="#" data-a="out">${ic("out")}<span>Log out</span></a></div></div></header>
   <main id="main" tabindex="-1"></main></div></div><nav class="bottom" aria-label="Main">${links}</nav>`;
 }
 function markNav(name){
@@ -82,7 +81,8 @@ document.addEventListener("click",async e=>{
 document.addEventListener("change",e=>{const el=e.target.closest("[data-c]");if(el&&chg[el.dataset.c])chg[el.dataset.c](el,e)});
 
 /* ---------- profile menu: click the profile to open, click again to close ---------- */
-const pm=(open)=>{const m=$("#pmenu");if(!m)return;if(open)m.innerHTML=panelHtml();m.hidden=!open;$(".chipu")?.setAttribute("aria-expanded",open?"true":"false")};
+const pm=(open)=>{const m=$("#pmenu");if(!m)return;m.hidden=!open;$(".chipu")?.setAttribute("aria-expanded",open?"true":"false")};
 act.pmenu=()=>pm($("#pmenu")?.hidden);
+act.pgo=()=>{pm(false);location.hash="#/profile"};
 document.addEventListener("click",e=>{if(!e.target.closest(".pm"))pm(false)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")pm(false)});
