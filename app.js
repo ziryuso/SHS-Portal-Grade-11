@@ -31,6 +31,7 @@ async function boot(){
   try{const s=await getDoc(doc(db,"settings","school"));if(s.exists())S.set={schoolYear:s.data().schoolYear||"",term:s.data().term||""}}catch{}
   if(S.me.role==="teacher")try{S.advSecs=await list("sections",where("adviserUid","==",S.me.uid))}catch{S.advSecs=[]}
   document.body.classList.toggle("is-student",S.me.role==="student");
+  document.body.classList.toggle("is-admin",S.me.role==="admin");
   buildShell();
   if(!booted){booted=true;addEventListener("hashchange",render)}
   if(location.hash.length<3)location.hash="#/home";else render();
@@ -86,21 +87,3 @@ act.pmenu=()=>pm($("#pmenu")?.hidden);
 act.pgo=()=>{pm(false);location.hash="#/profile"};
 document.addEventListener("click",e=>{if(!e.target.closest(".pm"))pm(false)});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")pm(false)});
-
-/* short-text fields: show the label as placeholder text inside the box (labels stay for screen readers) */
-let phq=0;
-function placeholders(){
-  phq=0;
-  $$("label.f[for]:not([data-ph])").forEach(l=>{
-    l.dataset.ph="1";
-    const el=document.getElementById(l.getAttribute("for"));if(!el)return;
-    const tag=el.tagName,type=(el.type||"").toLowerCase();
-    if(!(tag==="TEXTAREA"||(tag==="INPUT"&&["text","email","url","password","search","tel"].includes(type))))return;
-    const t=l.textContent.trim().replace(/\s*\(optional\)\s*$/i,"");
-    if(t.length>42||l.classList.contains("inline"))return;
-    const old=el.getAttribute("placeholder");
-    el.setAttribute("placeholder",old&&!/^e\.g\.|^name@/i.test(old)?old:old?`${t} (${old})`:t);
-    el.setAttribute("aria-label",l.textContent.trim());el.dataset.ph="1";l.classList.add("ph");
-  });
-}
-new MutationObserver(()=>{if(!phq)phq=requestAnimationFrame(placeholders)}).observe(document.body,{childList:true,subtree:true});
