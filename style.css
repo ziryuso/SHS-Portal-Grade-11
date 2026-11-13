@@ -246,3 +246,9 @@ details.card>summary{cursor:pointer;font-weight:600}
 .gbtn b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#fff;color:#1d4ed8;font-size:13px}
 .btn.ghost.gbtn b{background:var(--soft)}
 @media(max-width:640px){.auth1{padding:12px;place-items:start center}.cards .subj{grid-column:1/-1}}
+
+/* login background photo: save your picture as login-bg.jpg next to index.html.
+   The white layer on top creates the fade; raise .72 for a lighter photo, lower it for a stronger one. */
+.auth1{background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,.6)),url("login-bg.jpg") center bottom/cover no-repeat fixed,#fff}
+.authc{background:rgba(255,255,255,.96);box-shadow:0 8px 30px rgba(16,24,40,.12)}
+@media(max-width:900px){.auth1{background-attachment:scroll}}
