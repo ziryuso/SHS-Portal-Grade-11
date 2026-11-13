@@ -3,13 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SHS Grade 11 Learning Portal</title>
+<title>TTVHS SHS Student Portal</title>
+<meta name="description" content="Learning portal for Senior High School students and teachers: modules, activities, tests and grades.">
 <meta name="theme-color" content="#1d4ed8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com https://www.google.com; connect-src 'self' https://*.googleapis.com https://*.firebaseapp.com https://*.firebaseio.com wss://*.firebaseio.com; frame-src https://*.firebaseapp.com https://accounts.google.com https://www.google.com; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <link rel="icon" href="logo.jpg">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app"></div>
+<a class="skip" href="#main">Skip to main content</a>
+<div id="app" aria-live="polite"></div>
+<noscript><p style="padding:24px">This portal needs JavaScript. Please turn it on in your browser and reload.</p></noscript>
 <script type="module" src="app.js"></script>
 </body>
 </html>

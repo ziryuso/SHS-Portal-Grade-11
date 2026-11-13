@@ -339,3 +339,11 @@ img.avatar{display:block}
 .seg{border:1px solid var(--line);background:var(--card);color:var(--mut);padding:8px 14px;border-radius:999px;font:inherit;font-weight:600;cursor:pointer}
 .seg.on{background:var(--soft);color:var(--pri);border-color:var(--pri)}
 .item.cw{align-items:flex-start}
+
+/* ---- accessibility and consent additions ---- */
+.skip{position:absolute;left:-999px;top:8px;background:var(--pri);color:#fff;padding:8px 14px;border-radius:8px;z-index:100}
+.skip:focus{left:8px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;font-size:13px;color:var(--mut);line-height:1.45}
+.chk input{width:auto;margin-top:3px;flex:none}
+#main:focus{outline:none}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}

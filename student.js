@@ -220,7 +220,7 @@ pages.grades=async()=>{
     const ss=as.map(a=>d.sm[a.id]).filter(s=>s&&!pend(s)),avg=ss.length?Math.round(ss.reduce((n,s)=>n+sp(s),0)/ss.length):null;
     return {l,as,avg}});
   const all=rows.filter(r=>r.avg!=null);
-  return head("My grades",`${d.sec?.name||""}${S.set.schoolYear?" · SY "+S.set.schoolYear:""}`,`<button class="btn ghost" onclick="print()">Print</button>`)+
+  return head("My grades",`${d.sec?.name||""}${S.set.schoolYear?" · SY "+S.set.schoolYear:""}`,`<button class="btn ghost" data-a="print">Print</button>`)+
   `<div class="cards">${stat("Overall average",all.length?Math.round(all.reduce((n,r)=>n+r.avg,0)/all.length)+"%":"–","Across subjects with graded work","star","ok")}${stat("Activities done",`${d.subs.length}/${d.acts.length}`,"","check")}</div>`+
   rows.map(r=>`<div class="card"><div class="row between"><h3>${esc(subjName(d,r.l))}</h3><b>${r.avg==null?"–":r.avg+"%"}</b></div>
   ${tbl(["Activity","Status","Score","%"],r.as.map(a=>{const s=d.sm[a.id],[lb,k]=SB[status(a,s)];return [esc(a.title),badge(lb,k),s?`${(s.best||0)+(s.manualTotal||0)}/${s.total}`:"–",s?(pend(s)?"…":sp(s)+"%"):"–"]}),"No activities yet.")}</div>`).join("")||`<div class="card">${empty("No subjects yet.")}</div>`;
@@ -239,3 +239,5 @@ pages.profile=async()=>{
 const req=async type=>{if(!await ask("Send this request to the administrator?","Send"))return;
   await addDoc(collection(db,"requests"),{uid:S.me.uid,email:S.me.email,type,done:false,at:serverTimestamp()});toast("Request sent to the administrator.")};
 act.reqfix=()=>req("name/section correction");act.reqdel=()=>req("delete account");
+
+act.print=()=>print();

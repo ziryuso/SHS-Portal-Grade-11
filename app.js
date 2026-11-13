@@ -1,6 +1,6 @@
 import {auth,db,S,act,chg,$,$$,esc,avatar,doc,getDoc,setDoc,list,where,serverTimestamp,toast,errMsg,ic,SCHOOL,ADMIN_EMAILS} from "./core.js";
 import {onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {loginView,registerView,waitView,errorView,autoRegister} from "./auth.js";
+import {loginView,registerView,waitView,errorView,autoRegister,verifyView} from "./auth.js";
 import * as student from "./student.js";
 import * as teacher from "./teacher.js";
 import * as admin from "./admin.js";
@@ -11,6 +11,7 @@ let booted=false,tok=0;
 /* ---------- auth ---------- */
 onAuthStateChanged(auth,async u=>{
   if(!u){S.me=null;return loginView()}
+  if(u.providerData.some(p=>p.providerId==="password")&&!u.emailVerified)return verifyView(u);
   try{
     const s=await getDoc(doc(db,"users",u.uid));
     if(s.exists())S.me={uid:u.uid,...s.data()};
@@ -65,9 +66,10 @@ async function render(){
     const html=await R.pages[name](parts.slice(1));
     if(my!==tok)return;
     main.innerHTML=html;scrollTo(0,0);S.after?.();
+    document.title=(name==="home"?"Dashboard":name[0].toUpperCase()+name.slice(1))+" · TTVHS SHS Portal";main.focus({preventScroll:true});
   }catch(e){
     if(my!==tok)return;console.error(e);
-    main.innerHTML=`<div class="card"><h3>Something went wrong</h3><p>${esc(errMsg(e))}</p><p><button class="btn" onclick="location.reload()">Reload</button> <a class="btn ghost" href="#/home">Dashboard</a></p></div>`;
+    main.innerHTML=`<div class="card"><h3>Something went wrong</h3><p>${esc(errMsg(e))}</p><p><button class="btn" data-a="reload">Reload</button> <a class="btn ghost" href="#/home">Dashboard</a></p></div>`;
   }
 }
 

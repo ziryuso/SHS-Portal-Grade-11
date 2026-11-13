@@ -94,5 +94,5 @@ export async function annHtml(n=20,manage=false){
 }
 
 /* profile picture / initial */
-export const avatar=(m,size="")=>m.photo?`<img class="avatar ${size}" data-avatar data-size="${size}" src="${esc(m.photo)}" alt="">`:`<span class="avatar ${size}" data-avatar data-size="${size}">${esc((m.name||"?").trim()[0]||"?")}</span>`;
+export const avatar=(m,size="")=>m.photo&&/^data:image\//.test(m.photo)?`<img class="avatar ${size}" data-avatar data-size="${size}" src="${esc(m.photo)}" alt="">`:`<span class="avatar ${size}" data-avatar data-size="${size}">${esc((m.name||"?").trim()[0]||"?")}</span>`;
 export const refreshAvatars=()=>$$("[data-avatar]").forEach(el=>{el.outerHTML=avatar(S.me,el.dataset.size||"")});
