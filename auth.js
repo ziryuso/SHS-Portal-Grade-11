@@ -3,7 +3,7 @@ import {GoogleAuthProvider,signInWithPopup,signOut,signInWithEmailAndPassword,cr
 
 const PEND="portal:pending";
 const ini=esc(SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase());
-const wrap=inner=>`<div class="auth1"><div class="authw"><div class="brandh"><img class="logo-img big" src="logo.jpg" alt="TTVHS logo"><h1><span class="t1">TTVHS</span> <span class="t2">Senior High School Student Portal</span></h1></div><div class="card authc">${inner}</div></div></div>`;
+const wrap=inner=>`<div class="auth1"><div class="authw"><div class="brandh"><img class="logo-img big" src="logo.jpg" alt="TTVHS logo"><h1><span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span></h1></div><div class="card authc">${inner}</div></div></div>`;
 const GMAIL=/^[^\s@]+@gmail\.com$/i;
 const alias=()=>"S-"+[...crypto.getRandomValues(new Uint8Array(6))].map(x=>x.toString(36)).join("").slice(0,6).toUpperCase();
 const authErr=e=>({
