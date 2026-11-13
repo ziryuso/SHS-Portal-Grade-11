@@ -13,11 +13,14 @@ const authErr=e=>({
   "auth/operation-not-allowed":"Email/password sign-in is not turned on yet. In Firebase Console → Authentication → Sign-in method, enable Email/Password.",
   "auth/popup-blocked":"Your browser blocked the sign-in window. Allow pop-ups and try again."
 }[e?.code]||errMsg(e));
+const inApp=/FBAN|FBAV|FB_IAB|Messenger|Instagram|Line\//i.test(navigator.userAgent);
+const inAppMsg="Google sign-in is blocked inside Messenger/Facebook. Use Gmail and password, or open this page in Safari/Chrome.";
+act.copylink=async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname);toast("Link copied. Paste it in Safari or Chrome.")}catch{toast("Copy the address manually and open it in Safari or Chrome.","bad")}};
 const quiet=e=>e?.code==="auth/popup-closed-by-user"||e?.code==="auth/cancelled-popup-request";
 
 export async function loginView(){
   let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch{}
-  $("#app").innerHTML=wrap(`<div class="tabs" role="tablist"><a href="#" id="t_in" class="on" data-a="authtab" data-id="in">Sign in</a><a href="#" id="t_up" data-a="authtab" data-id="up">Create account</a></div>
+  $("#app").innerHTML=wrap(`${inApp?`<div class="note">Opened from Messenger/Facebook? Google sign-in does not work here. Sign in with Gmail and password, or open in Safari/Chrome. <button class="btn sm ghost" data-a="copylink">Copy link</button></div>`:""}<div class="tabs" role="tablist"><a href="#" id="t_in" class="on" data-a="authtab" data-id="in">Sign in</a><a href="#" id="t_up" data-a="authtab" data-id="up">Create account</a></div>
   <div id="p_in">
     <button class="btn gbtn" data-a="login"><b>G</b> Continue with Google</button>
     <div class="or"><span>or use your Gmail and password</span></div>
@@ -40,7 +43,7 @@ export async function loginView(){
 }
 act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none";$("#t_in").classList.toggle("on",!up);$("#t_up").classList.toggle("on",up)};
 
-act.login=async()=>{sessionStorage.removeItem(PEND);try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(!quiet(e))toast(authErr(e),"bad")}};
+act.login=async()=>{if(inApp)return toast(inAppMsg,"bad");sessionStorage.removeItem(PEND);try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(!quiet(e))toast(authErr(e),"bad")}};
 act.emlogin=async()=>{
   const em=v("em"),pw=$("#pw").value;if(!em||!pw)return toast("Enter your Gmail address and password.","bad");
   sessionStorage.removeItem(PEND);
@@ -61,7 +64,7 @@ function readProfile(){
   }
   return p;
 }
-act.upgoogle=async()=>{
+act.upgoogle=async()=>{if(inApp)return toast(inAppMsg,"bad");
   let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
   sessionStorage.setItem(PEND,JSON.stringify(p));
   try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){sessionStorage.removeItem(PEND);if(!quiet(e))toast(authErr(e),"bad")}
