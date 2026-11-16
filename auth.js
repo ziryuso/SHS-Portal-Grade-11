@@ -1,10 +1,18 @@
 import {auth,S,act,chg,SCHOOL,$,v,esc,list,db,doc,setDoc,serverTimestamp,toast,errMsg} from "./core.js";
-import {GoogleAuthProvider,signInWithPopup,signOut,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,sendEmailVerification} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {GoogleAuthProvider,signInWithPopup,signOut,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendPasswordResetEmail,sendEmailVerification,setPersistence,browserLocalPersistence,browserSessionPersistence} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const PEND="portal:pending";
 const ini=esc(SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase());
 const wrap=inner=>`<div class="auth1"><div class="authw"><div class="brandh"><img class="logo-img big" src="logo.jpg" alt="TTVHS logo"><h1><span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span></h1></div><div class="card authc">${inner}</div></div></div>`;
-const PRIV=`<label class="chk"><input type="checkbox" id="priv"><span>I agree that the school may keep my name, email, LRN and scores in this portal for class use, as allowed by the Data Privacy Act of 2012 (RA 10173).</span></label>`;
+const PRIV=`<label class="chk"><input type="checkbox" id="priv"><span>I agree to the terms: the school may keep my name, email and scores in this portal for class use (Data Privacy Act of 2012, RA 10173).</span></label>`;
+const G_ICON=`<svg class="gi" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700c-.5-1.400-.8-3-.8-4.700s.3-3.200.8-4.700l-7.900-6.100C.9 16.400 0 20.100 0 24s.9 7.600 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
+const IN_ICON=`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>`;
+const googleBtn=(a,t)=>`<button type="button" class="gbtn glg" data-a="${a}">${G_ICON}<span>${t}</span></button>`;
+const persist=async(keep)=>{try{await setPersistence(auth,keep?browserLocalPersistence:browserSessionPersistence)}catch{}};
+const secOpts=secs=>`<option value="" selected disabled>Section</option>`+secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("");
+const profileFields=secs=>`<select id="role" data-c="role" aria-label="I am a"><option value="" selected disabled>I am a</option><option value="teacher">Teacher</option><option value="student">Student</option></select>
+    <div id="stuf" style="display:none"><select id="sec" aria-label="Section">${secs.length?secOpts(secs):`<option value="" selected disabled>No sections yet</option>`}</select></div>
+    <input id="nm" autocomplete="name" placeholder="Name" aria-label="Name">`;
 const GMAIL=/^[^\s@]+@gmail\.com$/i;
 const alias=()=>"S-"+[...crypto.getRandomValues(new Uint8Array(6))].map(x=>x.toString(36)).join("").slice(0,6).toUpperCase();
 const authErr=e=>({
@@ -14,53 +22,58 @@ const authErr=e=>({
   "auth/operation-not-allowed":"Email/password sign-in is not turned on yet. In Firebase Console → Authentication → Sign-in method, enable Email/Password.",
   "auth/popup-blocked":"Your browser blocked the sign-in window. Allow pop-ups and try again."
 }[e?.code]||errMsg(e));
-const inApp=/FBAN|FBAV|FB_IAB|Messenger|Instagram|Line\//i.test(navigator.userAgent);
-const inAppMsg="Google sign-in is blocked inside Messenger/Facebook. Use Gmail and password, or open this page in Safari/Chrome.";
+const UA=navigator.userAgent,inApp=/FBAN|FBAV|FB_IAB|FB4A|FBIOS|FBSS|Messenger|Instagram|Line\/|Snapchat|TikTok|musical_ly|Twitter/i.test(UA),isAndroid=/Android/i.test(UA);
+/* Android: ask Chrome to open this same page (falls back to staying here if Chrome is missing) */
+const chromeUrl=()=>`intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(location.href)};end`;
+act.openext=()=>{location.href=chromeUrl()};
+const inAppMsg="Google sign-in is blocked inside Messenger/Facebook. Use email and password, or open this page in Safari/Chrome.";
 act.copylink=async()=>{try{await navigator.clipboard.writeText(location.origin+location.pathname);toast("Link copied. Paste it in Safari or Chrome.")}catch{toast("Copy the address manually and open it in Safari or Chrome.","bad")}};
 const quiet=e=>e?.code==="auth/popup-closed-by-user"||e?.code==="auth/cancelled-popup-request";
 
 export async function loginView(){
   let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch{}
-  $("#app").innerHTML=wrap(`${inApp?`<div class="note">Opened from Messenger/Facebook? Google sign-in does not work here. Sign in with Gmail and password, or open in Safari/Chrome. <button class="btn sm ghost" data-a="copylink">Copy link</button></div>`:""}<div class="tabs" role="tablist"><a href="#" id="t_in" class="on" role="tab" aria-selected="true" data-a="authtab" data-id="in">Sign in</a><a href="#" id="t_up" role="tab" aria-selected="false" data-a="authtab" data-id="up">Create account</a></div>
-  <div id="p_in">
-    <button class="btn gbtn" data-a="login"><b>G</b> Continue with Google</button>
-    <div class="or"><span>or use your Gmail and password</span></div>
-    <label class="f" for="em">Gmail address</label><input id="em" type="email" autocomplete="username" placeholder="name@gmail.com">
-    <label class="f" for="pw">Password</label><input id="pw" type="password" autocomplete="current-password">
-    <p><button class="btn gbtn" data-a="emlogin">Sign in</button></p>
-    <p class="right sm"><a href="#" data-a="forgot">Forgot password?</a></p>
+  $("#app").innerHTML=wrap(`${inApp?`<div class="note big"><b>You are inside Messenger/Facebook.</b> Google sign-in is blocked in this window.<br>${isAndroid?`Tap <b>Open in Chrome</b> to continue the normal way.`:`Tap the <b>•••</b> menu (or the Safari icon) and choose <b>Open in Browser / Open in Safari</b>, or copy the link and paste it in your browser.`}<div class="row" style="margin-top:8px">${isAndroid?`<button type="button" class="btn sm" data-a="openext">Open in Chrome</button>`:""}<button type="button" class="btn sm ghost" data-a="copylink">Copy link</button></div><div class="hint">You can also sign in or register right here with email and password.</div></div>`:""}
+  <div id="p_in" class="lg">
+    <input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email">
+    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
+    <div class="lg-row"><button type="button" class="btn lg-sm" data-a="emlogin">${IN_ICON}<span>Sign in</span></button>
+      <label class="lg-rm"><input type="checkbox" id="rem"><span>Remember me</span></label></div>
+    <div class="lg-links"><a href="#" data-a="forgot">I forgot my password</a><a href="#" data-a="authtab" data-id="up">Register New Account</a></div>
+    ${inApp?"":`<div class="or"><span>or</span></div>`}
+    ${inApp?"":googleBtn("login","Sign in with Google")}
   </div>
-  <div id="p_up" style="display:none">
-    <div class="g2c"><div><label class="f" for="role">I am a</label><select id="role" data-c="role"><option value="student">Student</option><option value="teacher">Teacher</option></select></div>
-    <div id="stuf"><label class="f" for="sec">Section</label><select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet</option>`}</select></div></div>
-    <label class="f" for="nm">Full name (Last, First M.I.)</label><input id="nm" autocomplete="name">
-    ${PRIV}<p style="margin-top:14px"><button class="btn gbtn" data-a="upgoogle"><b>G</b> Sign up with Google</button></p>
-    <details class="alt"><summary>Use Gmail and password instead</summary>
-      <input id="em2" type="email" autocomplete="username" placeholder="name@gmail.com" aria-label="Gmail address">
-      <input id="pw2" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password">
-      <button class="btn ghost gbtn" data-a="upemail">Create account</button></details>
-    <p class="hint" style="text-align:center">Your adviser or the administrator will approve your account.</p>
+  <div id="p_up" class="lg" style="display:none">
+    <h2 class="lg-h">Register New Account</h2>
+    ${profileFields(secs)}
+    ${PRIV}
+    ${inApp?`<input id="em2" type="email" autocomplete="username" placeholder="Email" aria-label="Email"><input id="pw2" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password"><button type="button" class="btn lg-sm lg-wide" data-a="upemail">Create account</button>`:googleBtn("upgoogle","Sign up with Google")}
+    <p class="hint" style="text-align:center">Your account will wait for approval by your teacher adviser or the administrator.</p>
+    <p class="lg-links" style="justify-content:center"><a href="#" data-a="authtab" data-id="in">Back to sign in</a></p>
   </div>`);
+  if(inApp&&isAndroid&&!sessionStorage.getItem("portal:ext")){sessionStorage.setItem("portal:ext","1");setTimeout(()=>{location.href=chromeUrl()},400)}
+  $("#pw")?.addEventListener("keydown",e=>{if(e.key==="Enter")$("[data-a=emlogin]")?.click()});
 }
-act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none";$("#t_in").classList.toggle("on",!up);$("#t_up").classList.toggle("on",up);$("#t_in").setAttribute("aria-selected",String(!up));$("#t_up").setAttribute("aria-selected",String(up))}
+act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none"};
 chg.role=el=>{$("#stuf").style.display=el.value==="student"?"":"none"};
 act.reload=()=>location.reload();;
 
-act.login=async()=>{if(inApp)return toast(inAppMsg,"bad");sessionStorage.removeItem(PEND);try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(!quiet(e))toast(authErr(e),"bad")}};
+act.login=async()=>{if(inApp)return toast(inAppMsg,"bad");sessionStorage.removeItem(PEND);await persist($("#rem")?.checked);try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){if(!quiet(e))toast(authErr(e),"bad")}};
 act.emlogin=async()=>{
-  const em=v("em"),pw=$("#pw").value;if(!em||!pw)return toast("Enter your Gmail address and password.","bad");
-  sessionStorage.removeItem(PEND);
+  const em=v("em"),pw=$("#pw").value;if(!em||!pw)return toast("Enter your email and password.","bad");
+  sessionStorage.removeItem(PEND);await persist($("#rem")?.checked);
   try{await signInWithEmailAndPassword(auth,em,pw)}catch(e){toast(authErr(e),"bad")}
 };
 act.forgot=async()=>{
-  const em=v("em");if(!em)return toast("Type your Gmail address above first.","bad");
+  const em=v("em");if(!em)return toast("Type your email above first.","bad");
   try{await sendPasswordResetEmail(auth,em)}catch(e){if(e.code==="auth/invalid-email")return toast(authErr(e),"bad")}
   toast("If that address has an account, a reset link was sent. Check your inbox and spam folder.");
 };
 function readProfile(){
   const role=v("role"),name=v("nm"),p={role,name};
+  if(!role)throw new Error("Choose Teacher or Student.");
+  if(role==="student"&&!v("sec"))throw new Error("Choose your section.");
   if(name.length<4)throw new Error("Please type your full name.");
-  if(!$("#priv")?.checked)throw new Error("Please tick the privacy agreement to continue.");
+  if(!$("#priv")?.checked)throw new Error("Please tick the agreement to continue.");
   if(role==="student"){
     if(!v("sec"))throw new Error("Choose your section.");
     if(v("lrn")&&!/^\d{12}$/.test(v("lrn")))throw new Error("LRN must be exactly 12 digits.");
@@ -70,15 +83,15 @@ function readProfile(){
 }
 act.upgoogle=async()=>{if(inApp)return toast(inAppMsg,"bad");
   let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
-  sessionStorage.setItem(PEND,JSON.stringify(p));
+  sessionStorage.setItem(PEND,JSON.stringify(p));await persist(true);
   try{await signInWithPopup(auth,new GoogleAuthProvider())}catch(e){sessionStorage.removeItem(PEND);if(!quiet(e))toast(authErr(e),"bad")}
 };
 act.upemail=async()=>{
   let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
   const em=v("em2"),pw=$("#pw2").value;
-  if(!GMAIL.test(em))return toast("Please use a Gmail address (name@gmail.com).","bad");
+  if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em))return toast("Enter a valid email address.","bad");
   if(pw.length<6)return toast("Password must be at least 6 characters.","bad");
-  sessionStorage.setItem(PEND,JSON.stringify(p));
+  sessionStorage.setItem(PEND,JSON.stringify(p));await persist(true);
   try{const c=await createUserWithEmailAndPassword(auth,em,pw);sendEmailVerification(c.user).catch(()=>{})}catch(e){sessionStorage.removeItem(PEND);toast(authErr(e),"bad")}
 };
 act.out=async()=>{await signOut(auth);S.me=null;location.hash=""};
@@ -96,14 +109,11 @@ export async function autoRegister(u){
 /* fallback: signed in but no profile yet (e.g. used Google on the Sign in tab) */
 export async function registerView(u){
   let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch(e){toast(errMsg(e),"bad")}
-  $("#app").innerHTML=wrap(`<h2>Finish your profile</h2><p class="mut">${esc(u.email)}</p>
-  <label class="f" for="role">I am a</label><select id="role" data-c="role"><option value="student">Student</option><option value="teacher">Teacher</option></select>
-  <label class="f" for="nm">Full name (Last name, First name M.I.)</label><input id="nm" value="${esc(u.displayName||"")}" autocomplete="name">
-  <div id="stuf"><label class="f" for="sec">Section enrolled</label>
-  <select id="sec">${secs.length?secs.map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join(""):`<option value="">No sections yet — ask your adviser</option>`}</select>
-  </div>
-  ${PRIV}<p><button class="btn gbtn" data-a="reg">Submit for approval</button></p>
-  <p><button class="btn ghost gbtn" data-a="out">Cancel and sign out</button></p>`);
+  $("#app").innerHTML=wrap(`<div class="lg"><h2 class="lg-h">Finish your profile</h2><p class="mut sm" style="text-align:center;margin:0">${esc(u.email)}</p>
+  ${profileFields(secs)}
+  ${PRIV}<button type="button" class="btn lg-sm lg-wide" data-a="reg">Submit for approval</button>
+  <p class="lg-links" style="justify-content:center"><a href="#" data-a="out">Cancel and sign out</a></p></div>`);
+  const nm=$("#nm");if(nm&&u.displayName)nm.value=u.displayName;
   act.reg=async el=>{
     let p;try{p=readProfile()}catch(e){return toast(e.message,"bad")}
     const d={email:u.email,name:p.name,role:p.role,status:"pending",consent:true,createdAt:serverTimestamp()};
