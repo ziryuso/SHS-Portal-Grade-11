@@ -12,13 +12,19 @@ export const photoCard=()=>`<div class="card row" style="gap:14px">${avatar(S.me
   <div class="row" style="margin-top:8px"><button class="btn sm" data-a="pickphoto">${S.me.photo?"Change photo":"Upload photo"}</button>${S.me.photo?`<button class="btn sm ghost" data-a="rmphoto">Remove</button>`:""}</div>
   <input type="file" id="photoin" accept="image/*" data-c="photo" hidden></div></div>`;
 act.pickphoto=()=>document.getElementById("photoin").click();
+act.pickphoto2=()=>document.getElementById("photoin2").click();
+/* floating profile card (admin): opened from the account menu */
+export const profInner=()=>{const m=S.me;return `<div class="pp-top">${avatar(m,"xl")}<div class="pp-i"><b>${esc(m.name)}</b><div class="mut sm">${esc(m.email||"")}</div><span class="badge">${esc(m.role[0].toUpperCase()+m.role.slice(1))}</span></div></div>
+  <div class="row" style="margin-top:12px"><button class="btn sm" data-a="pickphoto2">${m.photo?"Change photo":"Upload photo"}</button>${m.photo?`<button class="btn sm ghost" data-a="rmphoto">Remove</button>`:""}<button class="btn sm ghost" data-a="out">Log out</button></div>
+  <input type="file" id="photoin2" accept="image/*" data-c="photo" hidden>`};
+const refreshProf=()=>{const e=document.getElementById("pprof");if(e&&!e.hidden)e.innerHTML=profInner()};
 chg.photo=async el=>{
   const f=el.files[0];el.value="";if(!f)return;
   if(!f.type.startsWith("image/"))return toast("Please choose an image file.","bad");
-  try{const url=await toThumb(f);await updateDoc(doc(db,"users",S.me.uid),{photo:url});S.me.photo=url;refreshAvatars();toast("Photo updated.");refresh()}
+  try{const url=await toThumb(f);await updateDoc(doc(db,"users",S.me.uid),{photo:url});S.me.photo=url;refreshAvatars();refreshProf();toast("Photo updated.");refresh()}
   catch(e){toast(errMsg(e),"bad")}
 };
-act.rmphoto=async()=>{await updateDoc(doc(db,"users",S.me.uid),{photo:""});S.me.photo="";refreshAvatars();toast("Photo removed.");refresh()};
+act.rmphoto=async()=>{await updateDoc(doc(db,"users",S.me.uid),{photo:""});S.me.photo="";refreshAvatars();refreshProf();toast("Photo removed.");refresh()};
 
 /* profile page for teachers and admin (students have their own, with section details) */
 export const generalProfile=async()=>{
