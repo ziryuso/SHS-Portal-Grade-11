@@ -17,6 +17,21 @@ const counted=s=>s.graded!==false;
 const mean=a=>a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):null;
 const fm=x=>x==null?"–":x+"%";
 const byName=(a,b)=>(a.name||"").localeCompare(b.name||"");
+const mini=(label,value,icon,tone="")=>`<div class="stat ${tone}"><div class="si">${ic(icon)}</div><div><div class="sv">${value}</div><div class="sl">${esc(label)}</div></div></div>`;
+/* small pop-up form used for topics, announcements and materials */
+const fdlg=(title,fields,ok="Save",chk)=>new Promise(res=>{
+  const d=document.createElement("dialog");d.className="modal";
+  d.innerHTML=`<h3>${esc(title)}</h3>${fields.map(f=>`<label class="f" for="fd_${f.k}">${esc(f.l)}</label>${f.ta?`<textarea id="fd_${f.k}" rows="3"></textarea>`:`<input id="fd_${f.k}" ${f.type?`type="${f.type}"`:""} placeholder="${esc(f.ph||"")}">`}`).join("")}<p class="bad sm" id="fd_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">${esc(ok)}</button></div>`;
+  let done=false;const fin=r=>{if(done)return;done=true;d.close();d.remove();res(r)};
+  d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+    if(b.value!=="1")return fin(null);
+    const o={};for(const f of fields)o[f.k]=d.querySelector("#fd_"+f.k).value.trim();
+    const bad=fields.find(f=>f.req&&!o[f.k]);const m=bad?bad.l+" is required.":(chk?chk(o):"");
+    if(m){d.querySelector("#fd_err").textContent=m;return}
+    fin(o)});
+  d.addEventListener("cancel",e=>{e.preventDefault();fin(null)});
+  document.body.append(d);d.showModal();d.querySelector("input,textarea")?.focus();
+});
 async function myLoads(){
   const [loads,subs,secs]=await Promise.all([list("loads",where("teacherUid","==",S.me.uid)),list("subjects"),list("sections")]);
   return loads.map(l=>({...l,sn:subs.find(x=>x.id===l.subjectId)?.name||"?",sec:secs.find(x=>x.id===l.sectionId)?.name||"?"}));
@@ -36,26 +51,23 @@ pages.home=async()=>{
     adv=p.length?`<div class="card" style="border-color:var(--pri)"><div class="row between"><div><b>${p.length} student${p.length>1?"s":""} waiting for your approval</b><div class="mut sm">Advisory: ${esc(S.advSecs.map(s=>s.name).join(", "))}</div></div><a class="btn" href="#/advisory">Review</a></div></div>`:""}
   const recent=[...subs].sort((a,b)=>ts(b.at)-ts(a.at)).slice(0,6);
   return `<div class="banner"><h1>${greet()}, ${esc(S.me.name.split(",").pop().trim().split(" ")[0])}!</h1><p>${fday(Date.now())}</p></div>${adv}
-  <div class="cards">${stat("My classes",loads.length,`${new Set(secIds).size} section(s)`,"book")}${stat("Students",studs.length,"In my sections","users")}
-  ${stat("Activities posted",acts.length,"","list")}${stat("Submissions",subs.length,"All time","check","ok")}
-  ${stat("To grade",toGrade.length,"Essay answers waiting","clock",toGrade.length?"warn":"ok")}${stat("Average score",fm(mean(gs.map(sp))),"All my classes","star")}</div>
+  <div class="card"><h3>Overview</h3><div class="statgrp">${mini("My classes",loads.length,"book")}${mini("Students",studs.length,"users")}${mini("Activities",acts.length,"list")}${mini("Submissions",subs.length,"check","ok")}${mini("To grade",toGrade.length,"clock",toGrade.length?"warn":"ok")}${mini("Average score",fm(mean(gs.map(sp))),"star")}</div></div>
   <div class="cols"><div class="card"><h3>Class performance</h3>${loads.map(l=>{const ss=subs.filter(s=>s.loadId===l.id&&counted(s)),a=mean(ss.map(sp));
     return `<div class="item"><div style="flex:1;min-width:160px"><b>${esc(l.sn)}</b> <span class="mut sm">${esc(l.sec)}</span>${bar(a||0,a!=null&&a<75?"warn":"ok")}</div><b>${fm(a)}</b></div>`}).join("")||empty("No subject loads yet. The administrator assigns loads.","book")}</div>
   <div class="card"><h3>Needs grading</h3>${toGrade.slice(0,6).map(s=>`<div class="item"><div><b>${esc(nameOf(s.uid))}</b><div class="mut sm">${esc(actOf(s.actId)?.title||"")}</div></div><a class="btn sm" href="#/grade/${s.actId}">Grade</a></div>`).join("")||empty("Nothing to grade.","check")}</div></div>
-  <div class="card" style="margin-top:14px"><h3>Recent submissions</h3>${tbl(["Student","Activity","Score","When"],recent.map(s=>[esc(nameOf(s.uid)),esc(actOf(s.actId)?.title||"—"),counted(s)?sp(s)+"%":"pending",fdate(ts(s.at))]),"No submissions yet.")}</div>
+  <div class="card" style="margin-top:14px"><h3>Recent submissions</h3>${tbl(["Student","Activity","Score","When"],recent.map(s=>[esc(nameOf(s.uid)),esc(actOf(s.actId)?.title||"—"),counted(s)?sp(s)+"%":"pending",fdate(ts(s.at))]),"No submissions yet.","nw")}</div>
   <h2>Announcements</h2>${await annHtml(3)}`;
 };
 
-/* ---------- classes ---------- */
+/* ---------- classes (each class card opens the class) ---------- */
 pages.classes=async()=>{
   const loads=await myLoads(),ids=loads.map(l=>l.id);
   const [acts0,subs,studs]=await Promise.all([ids.length?list("activities",where("by","==",S.me.uid)):[],subsFor(ids),studentsFor(loads.map(l=>l.sectionId))]);
   const acts=acts0.filter(a=>a.v===2);
   return head("My classes",`${loads.length} subject load(s)`)+`<div class="cards">${loads.map(l=>{
-    const n=studs.filter(s=>s.sectionId===l.sectionId).length,as=acts.filter(a=>a.loadId===l.id),ss=subs.filter(s=>s.loadId===l.id),avg=mean(ss.filter(counted).map(sp)),comp=pct(ss.length,n*as.length);
-    return `<div class="card subj"><span class="chip">${esc(l.sec)}</span><h3>${esc(l.sn)}</h3><div class="mut sm">${n} students · ${as.length} activities</div>
-    <div class="row between sm" style="margin-top:8px"><span>Completion</span><b>${comp}%</b></div>${bar(comp)}<div class="row between sm"><span>Class average</span><b>${fm(avg)}</b></div>
-    <p><a class="btn" href="#/load/${l.id}">Open class</a></p></div>`}).join("")||`<div class="card">${empty("No subject loads yet. The administrator assigns loads.","book")}</div>`}</div>`;
+    const n=studs.filter(s=>s.sectionId===l.sectionId).length,as=acts.filter(a=>a.loadId===l.id&&!a.draft),ss=subs.filter(s=>s.loadId===l.id),avg=mean(ss.filter(counted).map(sp)),comp=pct(ss.length,n*as.length);
+    return `<a class="card subj clk" href="#/load/${l.id}" aria-label="Open ${esc(l.sn)}, ${esc(l.sec)}"><span class="chip">${esc(l.sec)}</span><h3>${esc(l.sn)}</h3><div class="mut sm">${n} students · ${as.length} activities</div>
+    <div class="row between sm" style="margin-top:8px"><span>Completion</span><b>${comp}%</b></div>${bar(comp)}<div class="row between sm"><span>Class average</span><b>${fm(avg)}</b></div></a>`}).join("")||`<div class="card">${empty("No subject loads yet. The administrator assigns loads.","book")}</div>`}</div>`;
 };
 
 /* ---------- one class ---------- */
@@ -63,32 +75,67 @@ async function ctx(id){
   const ls=await getDoc(doc(db,"loads",id));
   if(!ls.exists())return null;const ld={id,...ls.data()};
   if(ld.teacherUid!==S.me.uid)return null;
-  const [subj,sec,studs,acts,subs]=await Promise.all([getDoc(doc(db,"subjects",ld.subjectId)),getDoc(doc(db,"sections",ld.sectionId)),studentsFor([ld.sectionId]),
-    list("activities",where("loadId","==",id)),list("submissions",where("loadId","==",id))]);
-  return {ld,sn:subj.data()?.name||"Subject",secName:sec.data()?.name||"Section",studs,acts:acts.filter(a=>a.v===2).sort((a,b)=>ts(a.at)-ts(b.at)),subs};
+  const safe=p=>p.catch(()=>[]),byAt=(x,y)=>ts(x.at)-ts(y.at);
+  const [subj,sec,studs,acts,subs,topics,mats,anns]=await Promise.all([getDoc(doc(db,"subjects",ld.subjectId)),getDoc(doc(db,"sections",ld.sectionId)),studentsFor([ld.sectionId]),
+    list("activities",where("loadId","==",id)),list("submissions",where("loadId","==",id)),
+    safe(list("topics",where("loadId","==",id))),safe(list("materials",where("loadId","==",id))),safe(list("classAnn",where("loadId","==",id)))]);
+  return {ld,sn:subj.data()?.name||"Subject",secName:sec.data()?.name||"Section",studs,acts:acts.filter(a=>a.v===2).sort(byAt),subs,topics:topics.sort(byAt),mats:mats.sort((x,y)=>byAt(y,x)),anns:anns.sort((x,y)=>byAt(y,x))};
 }
-const tabs=(id,cur)=>`<div class="tabs">${[["activities","Activities"],["materials","Materials"],["record","Class record"],["analysis","Item analysis"]].map(([k,l])=>`<a class="${k===cur?"on":""}" href="#/load/${id}/${k}">${l}</a>`).join("")}</div>`;
+const tabs=(id,cur)=>`<div class="tabs">${[["activities","Classwork"],["record","Class record"],["students","Students"],["analysis","Item analysis"]].map(([k,l])=>`<a class="${k===cur?"on":""}" href="#/load/${id}/${k}">${l}</a>`).join("")}</div>`;
 
 pages.load=async([id,tab="activities",extra])=>{
   const c=await ctx(id);if(!c)return `<div class="card">${empty("Class not found.")}<p class="right"><a class="btn" href="#/classes">Back</a></p></div>`;
-  const hd=head(c.sn,`${c.secName} · ${c.studs.length} students`,`<a class="btn ghost" href="#/classes">← Classes</a>`)+tabs(id,tab);
-  if(tab==="materials"){
-    const mats=(await list("materials",where("loadId","==",id))).sort((a,b)=>ts(b.at)-ts(a.at));
-    return hd+`<div class="card"><h3>Post a learning material</h3><div class="g2"><div><label class="f" for="mt_t">Title</label><input id="mt_t" placeholder="e.g. Module 3 – Trigonometry"></div>
-    <div><label class="f" for="mt_u">Link (Google Drive, etc.)</label><input id="mt_u" type="url" placeholder="https://drive.google.com/…"></div></div>
-    <label class="f" for="mt_n">Note (optional)</label><input id="mt_n"><p class="hint">Tip: in Google Drive set sharing to “Anyone with the link can view” so students can open it.</p>
-    <p><button class="btn" data-a="addmat" data-id="${id}">Post material</button></p></div>
-    <div class="card"><h3>Posted materials</h3>${mats.map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${btn("delmat","Delete",m.id,"danger")}</div></div>`).join("")||empty("No materials yet.")}</div>`;
-  }
+  const cur=tab==="results"?"activities":tab==="student"?"students":tab;
+  const hd=head(c.sn,`${c.secName} · ${c.studs.length} students`,`<a class="btn ghost" href="#/classes">← Classes</a>`)+tabs(id,cur);
   const subOf=(uid,aid)=>c.subs.find(s=>s.uid===uid&&s.actId===aid);
+  const pub=c.acts.filter(a=>!a.draft);
+  const rankRows=()=>{const r=c.studs.map(s=>{const mine=pub.map(a=>subOf(s.id,a.id)).filter(Boolean),gr=mine.filter(counted);return {s,n:mine.length,av:mean(gr.map(sp)),comp:pct(mine.length,pub.length),pend:mine.length-gr.length}})
+      .sort((x,y)=>(y.av??-1)-(x.av??-1)||y.comp-x.comp||byName(x.s,y.s));let last=null;r.forEach((x,i)=>{x.rank=last&&last.av===x.av&&last.comp===x.comp?last.rank:i+1;last=x});return r};
+
+  /* who turned in / attempted / not started, for one activity */
+  if(tab==="results"){
+    const a=c.acts.find(x=>x.id===extra);
+    if(!a)return hd+`<div class="card">${empty("Activity not found.")}</div>`;
+    const rows=c.studs.map(s=>{const x=subOf(s.id,a.id),n=x?.attempts||0;return {s,x,n,st:!x?"Not started":n>=a.attempts?"Completed":"Attempted"}})
+      .sort((p,q)=>["Completed","Attempted","Not started"].indexOf(p.st)-["Completed","Attempted","Not started"].indexOf(q.st)||byName(p.s,q.s));
+    const cnt=k=>rows.filter(r=>r.st===k).length,tone={Completed:"ok",Attempted:"warn","Not started":"mut"};
+    S.tmp={name:`${a.title}-students.csv`,rows:[["Student","LRN","Status","Score %","Attempts","Last submitted"],...rows.map(r=>[r.s.name,r.s.lrn||"",r.st,r.x?(counted(r.x)?sp(r.x):"pending"):"",r.n,r.x?fdate(ts(r.x.at)):""])]};
+    return hd+`<div class="card"><div class="row between"><div><h3>${esc(a.title)}</h3><div class="mut sm">${a.topic?esc(a.topic)+" · ":""}${a.attempts} attempt(s) allowed</div></div><div class="row"><a class="btn ghost" href="#/load/${id}/activities">← Classwork</a><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div></div>
+    <div class="statgrp" style="margin-top:10px">${mini("Completed",cnt("Completed"),"check","ok")}${mini("Attempted",cnt("Attempted"),"clock","warn")}${mini("Not started",cnt("Not started"),"users")}</div></div>
+    <div class="card">${tbl(["Student","Status","Score","Attempts","Last submitted","Tab switches"],rows.map(r=>[esc(r.s.name),badge(r.st,tone[r.st]),r.x?(counted(r.x)?`<b>${sp(r.x)}%</b>`:"pending"):"–",r.x?`${r.n}/${a.attempts}`:"–",r.x?fdate(ts(r.x.at)):"–",r.x?(r.x.tabSwitches||0):"–"]),"No students in this section yet.","rec nw")}
+    <p class="hint">Attempted = submitted at least once and still has attempts left. Completed = all attempts used.</p></div>`;
+  }
+
+  /* ranking of students */
+  if(tab==="students"){
+    const rk=rankRows(),top=rk.filter(r=>r.av!=null).slice(0,3);
+    S.tmp={name:`${c.sn}-${c.secName}-ranking.csv`,rows:[["Rank","Student","LRN","Average %","Completion %","Turned in"],...rk.map(r=>[r.rank,r.s.name,r.s.lrn||"",r.av??"",r.comp,r.n+"/"+pub.length])]};
+    return hd+`<div class="card"><div class="row between"><h3>Student ranking</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
+    ${top.length?`<div class="statgrp" style="margin:6px 0 12px">${top.map(r=>`<a class="stat" href="#/load/${id}/student/${r.s.id}"><div class="si">${r.rank}</div><div><div class="sv">${fm(r.av)}</div><div class="sl">${esc(r.s.name)}</div></div></a>`).join("")}</div>`:""}
+    ${tbl(["Student","Rank","Average","Completion","Turned in","To grade"],rk.map(r=>[`<a href="#/load/${id}/student/${r.s.id}">${esc(r.s.name)}</a>`,r.av==null?"–":"#"+r.rank,r.av==null?"–":`<b>${r.av}%</b>${r.av<75?" "+badge("Below 75","warn"):""}`,r.comp+"%",`${r.n}/${pub.length}`,r.pend||"–"]),"No students in this section yet.","rec nw")}
+    <p class="hint">Ranked by average of graded scores, then by completion. Missing work is not counted as zero.</p></div>`;
+  }
+
+  /* one student's report */
+  if(tab==="student"){
+    const s=c.studs.find(x=>x.id===extra);if(!s)return hd+`<div class="card">${empty("Student not found.","users")}</div>`;
+    const r=rankRows().find(x=>x.s.id===s.id);
+    return hd+`<div class="card"><div class="row between"><div><h3>${esc(s.name)}</h3><div class="mut sm">${esc(s.email||"")}${s.lrn?" · LRN "+esc(s.lrn):""}</div></div><a class="btn ghost" href="#/load/${id}/students">← Ranking</a></div>
+    <div class="statgrp" style="margin-top:10px">${mini("Rank",r.av==null?"–":"#"+r.rank,"star")}${mini("Average",fm(r.av),"chart")}${mini("Completion",r.comp+"%","check","ok")}${mini("Turned in",`${r.n}/${pub.length}`,"list")}</div></div>
+    <div class="card">${tbl(["Activity","Topic","Status","Score","Attempts"],pub.map(a=>{const x=subOf(s.id,a.id),n=x?.attempts||0;return [esc(a.title),esc(a.topic||"–"),x?badge(n>=a.attempts?"Completed":"Attempted",n>=a.attempts?"ok":"warn"):badge("Not started","mut"),x?(counted(x)?`<b>${sp(x)}%</b>`:"pending"):"–",x?`${n}/${a.attempts}`:"–"]}),"No activities posted yet.","rec nw")}</div>`;
+  }
+
   if(tab==="record"){
-    const cols=c.acts,rows=c.studs.map(s=>{const mine=cols.map(a=>subOf(s.id,a.id)),done=mine.filter(Boolean),av=mean(done.filter(counted).map(sp));
+    const cols=pub,rows=c.studs.map(s=>{const mine=cols.map(a=>subOf(s.id,a.id)),done=mine.filter(Boolean),av=mean(done.filter(counted).map(sp));
       return {s,mine,av,comp:pct(done.length,cols.length)}});
+    const rep=cols.map(a=>{const ss=c.subs.filter(s=>s.actId===a.id),n=new Set(ss.map(s=>s.uid)).size;return {a,n,p:pct(n,c.studs.length),avg:mean(ss.filter(counted).map(sp))}});
     S.tmp={name:`${c.sn}-${c.secName}-class-record.csv`,rows:[["Student","LRN",...cols.map(a=>`${a.title} (${a.totalPts})`),"Average %","Completion %"],
       ...rows.map(r=>[r.s.name,r.s.lrn||"",...r.mine.map(x=>x?(counted(x)?sp(x)+"%":"pending"):""),r.av??"",r.comp])]};
-    return hd+`<div class="card"><div class="row between"><h3>Class record</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
+    return hd+`<div class="card"><h3>Activity reports</h3>${tbl(["Activity","Topic","Turned in","% answered","Class avg",""],rep.map(r=>[esc(r.a.title),esc(r.a.topic||"–"),`${r.n}/${c.studs.length}`,`<div style="min-width:110px"><b>${r.p}%</b>${bar(r.p)}</div>`,fm(r.avg),`<a class="btn sm ghost" href="#/load/${id}/results/${r.a.id}">Students</a>`]),"No activities posted yet.","rec nw")}
+    <p class="hint">% answered = students who turned in the activity. For per-question results see Item analysis.</p></div>
+    <div class="card"><div class="row between"><h3>Scores per student</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
     ${tbl(["Student",...cols.map(a=>esc(a.title)),"Avg","Done"],[...rows.map(r=>[esc(r.s.name),...r.mine.map(x=>x?(counted(x)?sp(x)+"%":`<span class="mut">…</span>`):`<span class="mut">–</span>`),`<b>${fm(r.av)}</b>`,r.comp+"%"]),
-      {c:[`<b>Class average</b>`,...cols.map(a=>`<b>${fm(mean(c.subs.filter(s=>s.actId===a.id&&counted(s)).map(sp)))}</b>`),`<b>${fm(mean(rows.map(r=>r.av).filter(x=>x!=null)))}</b>`,""]}],"No students in this section yet.","rec")}
+      {c:[`<b>Class average</b>`,...cols.map(a=>`<b>${fm(mean(c.subs.filter(s=>s.actId===a.id&&counted(s)).map(sp)))}</b>`),`<b>${fm(mean(rows.map(r=>r.av).filter(x=>x!=null)))}</b>`,""]}],"No students in this section yet.","rec nw")}
     <p class="hint">“…” means an essay is waiting to be graded. Averages use graded submissions only.</p></div>`;
   }
   if(tab==="analysis"){
@@ -107,28 +154,63 @@ pages.load=async([id,tab="activities",extra])=>{
     <div class="card"><h3>Hardest item</h3>${hardest?`<p><b>Q${hardest.i+1}</b> — only ${hardest.p}% got it right.</p><p class="mut">${esc(hardest.q.p)}</p>`:empty("No data yet.")}</div></div>
     <div class="card" style="margin-top:14px"><h3>Item analysis</h3>${qa.map(x=>`<div class="item"><div style="flex:1;min-width:220px"><b>Q${x.i+1}.</b> ${esc(x.q.p)}${x.es?`<div class="mut sm">Essay — graded manually</div>`:`${bar(x.p||0,x.p!=null&&x.p<50?"bad":x.p<75?"warn":"ok")}${x.top?`<div class="mut sm">Most common wrong answer: “${esc(x.top[0])}” (${x.top[1]})</div>`:""}`}</div>${x.es?"":`<b>${fm(x.p)}</b>`}</div>`).join("")}</div>`;
   }
-  /* classwork tab: grouped by topic, like Google Classroom */
+  /* classwork: topic first, each topic holds Announcements, Materials and Tests */
   const state=a=>a.draft?["Draft","mut"]:a.opens&&Date.now()<a.opens?["Scheduled","info"]:a.closes&&Date.now()>a.closes?["Closed","bad"]:["Open","ok"];
-  const groups={};c.acts.forEach(a=>(groups[a.topic||""]??=[]).push(a));
-  const tkeys=Object.keys(groups).sort((x,y)=>!x?1:!y?-1:x.localeCompare(y));
-  const card=a=>{const ss=c.subs.filter(s=>s.actId===a.id),tg=ss.filter(s=>s.graded===false).length,[sl,sk]=state(a);
-    return `<div class="item cw"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl,sk)}${a.release?" "+badge("Answers released","ok"):""}
+  const testItem=a=>{const ss=c.subs.filter(s=>s.actId===a.id),tg=ss.filter(s=>s.graded===false).length,[sl,sk]=state(a);
+    return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl,sk)}${a.release?" "+badge("Answers released","ok"):""}
     <div class="mut sm">${a.questions.length} items · ${a.totalPts} pts · ${a.attempts} attempt(s)${a.timeLimit?" · "+a.timeLimit+" min":""} · ${a.closes?"Due "+fdate(a.closes):"No deadline"}${a.opens&&Date.now()<a.opens?" · Opens "+fdate(a.opens):""}</div>
     ${a.draft?"":`<div class="sm"><b>${new Set(ss.map(s=>s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg?` · <a href="#/grade/${a.id}">${badge(tg+" to grade","warn")}</a>`:""}</div>`}</div>
-    <div class="row"><a class="btn sm" href="#/editor/${id}/${a.id}">Edit</a>${a.hasEssay?`<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>`:""}${btn("relact",a.release?"Hide answers":"Release answers",a.id,"ghost")}${btn("dupact","Duplicate",a.id,"ghost")}${btn("delact","Delete",a.id,"danger")}</div></div>`};
-  return hd+`<div class="row between" style="margin-bottom:10px"><span class="mut sm">${c.acts.length} item(s) · ${c.acts.filter(a=>a.draft).length} draft(s)</span><a class="btn" href="#/editor/${id}">+ Create activity</a></div>`+
-  (tkeys.map(t=>`<div class="card"><h3>${t?esc(t):"No topic"}</h3>${groups[t].sort((x,y)=>(x.draft?0:1)-(y.draft?0:1)||ts(y.at)-ts(x.at)).map(card).join("")}</div>`).join("")||`<div class="card">${empty("No activities yet. Click “Create activity”.")}</div>`);
+    <div class="row">${a.draft?"":`<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${a.hasEssay?`<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>`:""}${btn("relact",a.release?"Hide answers":"Release answers",a.id,"ghost")}${btn("dupact","Duplicate",a.id,"ghost")}${btn("delact","Delete",a.id,"danger")}</div></div>`};
+  const annItem=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${btn("t_delann","Delete",x.id,"danger")}</div>`;
+  const matItem=m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${btn("t_delmat","Delete",m.id,"danger")}</div></div>`;
+  const fold=(t,n,add,items)=>`<details class="fold" open><summary><span class="sp">${t}</span><span class="badge mut">${n}</span>${add}</summary>${items.join("")||`<p class="mut sm">Nothing yet.</p>`}</details>`;
+  const docNames=new Set(c.topics.map(t=>t.name));
+  const legacy=[...new Set([...c.acts.map(a=>a.topic),...c.mats.map(m=>m.topic),...c.anns.map(x=>x.topic)].filter(n=>n&&!docNames.has(n)))].sort();
+  const names=[...c.topics.map(t=>t.name),...legacy];
+  const sortT=l=>[...l].sort((x,y)=>(x.draft?0:1)-(y.draft?0:1)||ts(y.at)-ts(x.at));
+  const topicCard=t=>{const td=c.topics.find(x=>x.name===t),e=esc(t),ex=`data-topic="${e}"`;
+    return `<div class="card topic"><div class="row between"><h3>${e}</h3>${td?btn("t_deltopic","Delete topic",td.id,"ghost",`data-lid="${id}" ${ex}`):""}</div>
+    ${fold("Announcements",c.anns.filter(x=>x.topic===t).length,btn("t_addann","+ Add",id,"ghost",ex),c.anns.filter(x=>x.topic===t).map(annItem))}
+    ${fold("Materials",c.mats.filter(m=>m.topic===t).length,btn("t_addmat","+ Add",id,"ghost",ex),c.mats.filter(m=>m.topic===t).map(matItem))}
+    ${fold("Tests",c.acts.filter(a=>a.topic===t).length,btn("t_newtest","+ New test",id,"",ex),sortT(c.acts.filter(a=>a.topic===t)).map(testItem))}</div>`};
+  const loose={a:c.acts.filter(a=>!a.topic),m:c.mats.filter(m=>!m.topic)};
+  return hd+`<div class="row between" style="margin-bottom:10px"><span class="mut sm">${names.length} topic(s) · ${c.acts.filter(a=>a.draft).length} draft(s)</span>${btn("t_addtopic","+ New topic",id)}</div>`+
+  (names.map(topicCard).join("")+(loose.a.length||loose.m.length?`<div class="card"><h3>No topic</h3><p class="hint">Older items. Edit a test to move it into a topic.</p>${loose.m.map(matItem).join("")}${sortT(loose.a).map(testItem).join("")}</div>`:"")
+  ||`<div class="card">${empty("No topics yet. Create a topic first, then add announcements, materials and tests inside it.","list")}</div>`);
 };
 
 act.csvrec=()=>S.tmp&&saveCsv(S.tmp.name,S.tmp.rows);
-act.addmat=async el=>{
-  const t=v("mt_t"),u=v("mt_u");if(!t)return toast("Enter a title.","bad");
-  if(!/^https?:\/\//i.test(u))return toast("Enter a valid link starting with http:// or https://","bad");
-  const ld=(await getDoc(doc(db,"loads",el.dataset.id))).data();
-  await addDoc(collection(db,"materials"),{loadId:el.dataset.id,sectionId:ld.sectionId,title:t,url:u,note:v("mt_n"),by:S.me.uid,at:serverTimestamp()});
-  log("posted material "+t);toast("Material posted.");go(`load/${el.dataset.id}/materials`);
+const loadOf=async lid=>(await getDoc(doc(db,"loads",lid))).data();
+act.t_addtopic=async el=>{
+  const lid=el.dataset.id,old=await list("topics",where("loadId","==",lid)).catch(()=>[]);
+  const r=await fdlg("New topic",[{k:"n",l:"Topic name",ph:"e.g. Unit 7 – Trigonometry",req:1}],"Create",o=>old.some(t=>t.name.toLowerCase()===o.n.toLowerCase())?"That topic already exists.":"");
+  if(!r)return;const ld=await loadOf(lid);
+  await addDoc(collection(db,"topics"),{loadId:lid,sectionId:ld.sectionId,name:r.n.slice(0,80),by:S.me.uid,at:serverTimestamp()});
+  log("created topic "+r.n);toast("Topic created.");refresh();
 };
-act.delmat=async el=>{if(await ask("Delete this material?","Delete",true)){await deleteDoc(doc(db,"materials",el.dataset.id));toast("Deleted.");location.reload()}};
+act.t_deltopic=async el=>{
+  const lid=el.dataset.lid,name=el.dataset.topic;
+  const [as,ms,ns]=await Promise.all([list("activities",where("loadId","==",lid)),list("materials",where("loadId","==",lid)),list("classAnn",where("loadId","==",lid))]);
+  if(as.some(a=>a.topic===name))return toast("Delete this topic's tests first.","bad");
+  if(!await ask(`Delete the topic “${name}” with its announcements and materials?`,"Delete",true))return;
+  const b=writeBatch(db);ms.filter(m=>m.topic===name).forEach(m=>b.delete(doc(db,"materials",m.id)));ns.filter(x=>x.topic===name).forEach(x=>b.delete(doc(db,"classAnn",x.id)));b.delete(doc(db,"topics",el.dataset.id));
+  await b.commit();toast("Topic deleted.");refresh();
+};
+act.t_addann=async el=>{
+  const r=await fdlg("New announcement",[{k:"t",l:"Title",req:1},{k:"x",l:"Message",ta:1,req:1}],"Post");if(!r)return;
+  const ld=await loadOf(el.dataset.id);
+  await addDoc(collection(db,"classAnn"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,title:r.t,text:r.x,by:S.me.uid,at:serverTimestamp()});
+  log("class announcement "+r.t);toast("Announcement posted.");refresh();
+};
+act.t_delann=async el=>{if(await ask("Delete this announcement?","Delete",true)){await deleteDoc(doc(db,"classAnn",el.dataset.id));toast("Deleted.");refresh()}};
+act.t_addmat=async el=>{
+  const r=await fdlg("New material",[{k:"t",l:"Title",ph:"e.g. Module 3",req:1},{k:"u",l:"Link (Google Drive, etc.)",type:"url",ph:"https://",req:1},{k:"n",l:"Note"}],"Post",o=>/^https?:\/\//i.test(o.u)?"":"The link must start with http:// or https://");
+  if(!r)return;const ld=await loadOf(el.dataset.id);
+  await addDoc(collection(db,"materials"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,title:r.t,url:r.u,note:r.n,by:S.me.uid,at:serverTimestamp()});
+  log("posted material "+r.t);toast("Material posted.");refresh();
+};
+act.t_delmat=async el=>{if(await ask("Delete this material?","Delete",true)){await deleteDoc(doc(db,"materials",el.dataset.id));toast("Deleted.");refresh()}};
+act.t_newtest=el=>{PRE=el.dataset.topic||"";location.hash=`#/editor/${el.dataset.id}`};
 act.relact=async el=>{const r=doc(db,"activities",el.dataset.id),cur=(await getDoc(r)).data().release;await updateDoc(r,{release:!cur});toast(cur?"Answers hidden from students.":"Answers released to students.");location.reload()};
 act.delact=async el=>{
   if(!await ask("Delete this activity and ALL student submissions for it? This cannot be undone.","Delete",true))return;
@@ -146,7 +228,7 @@ act.dupact=async el=>{
 };
 
 /* ---------- activity editor ---------- */
-let E=null;
+let E=null,PRE="";
 const TYPES={mc:"Multiple choice",tf:"True / False",id:"Identification",sa:"Short answer",mt:"Matching",es:"Essay (teacher graded)"};
 const dkey=lid=>"edraft2:"+S.me.uid+":"+lid;
 
@@ -166,15 +248,15 @@ function mk(t,p,pts,{o=[],a="",pairs=[],img=""}){
 const pairsOf=txt=>txt.split(/\n|;/).map(l=>{const i=l.indexOf("=");return i<0?["",""]:[l.slice(0,i).trim(),l.slice(i+1).trim()]});
 const sumQ=q=>q.t==="mc"?q.o.map(o=>o===q.a?`<b class="ok">${esc(o)} ✓</b>`:esc(o)).join(" · "):q.t==="tf"?"Answer: "+q.a:q.t==="mt"?q.pairs.map(p=>esc(p[0])+" → "+esc(p[1])).join(" · "):q.t==="es"?"Graded by you"+(q.a?" · rubric saved":""):"Accepted: "+esc(q.a.split("|").join(" / "));
 
-const imgBox=()=>`<div id="qimgbox" class="imgbox">${E.qimg?`<img class="qimg" src="${E.qimg}" alt=""><button class="btn sm danger" data-a="qimgrm" type="button">Remove picture</button>`:`<label class="btn sm ghost" for="qimgf">${ic("file")} Add picture (shown above the choices)</label>`}<input id="qimgf" type="file" accept="image/*" hidden></div>`;
+const imgBox=()=>`<div id="qimgbox" class="imgbox">${E.qimg?`<img class="qimg" src="${E.qimg}" alt=""><button class="btn sm danger" data-a="qimgrm" type="button">Remove picture</button>`:`<label class="btn sm ghost" for="qimgf">${ic("file")} Add picture</label>`}<input id="qimgf" type="file" accept="image/*" hidden></div>`;
 function qform(){
   const q=E.keep||(E.edit>=0?E.qs[E.edit]:{}),t=E.qt;E.keep=null;E.qimg=q.img||"";
   let x="";
-  if(t==="mc")x=`<label class="f" for="qo">Options (one per line, 2–8)</label><textarea id="qo" rows="4">${esc((q.o||[]).join("\n"))}</textarea><label class="f" for="qa">Correct option (its number or exact text)</label><input id="qa" value="${esc(q.t==="mc"?q.a||"":"")}">`;
+  if(t==="mc")x=`<label class="f" for="qo">Options (one per line)</label><textarea id="qo" rows="4">${esc((q.o||[]).join("\n"))}</textarea><label class="f" for="qa">Correct option</label><input id="qa" value="${esc(q.t==="mc"?q.a||"":"")}">`;
   else if(t==="tf")x=`<label class="f" for="qa">Correct answer</label><select id="qa"><option>True</option><option ${q.a==="False"?"selected":""}>False</option></select>`;
-  else if(t==="id"||t==="sa")x=`<label class="f" for="qa">Accepted answer(s) — separate alternatives with |</label><input id="qa" value="${esc(q.t==="id"||q.t==="sa"?q.a||"":"")}" placeholder="Manila|Maynila"><p class="hint">Answers are not case-sensitive and extra spaces are ignored.</p>`;
-  else if(t==="mt")x=`<label class="f" for="qm">Pairs (one per line: left=right)</label><textarea id="qm" rows="4" placeholder="Sine=opposite/hypotenuse&#10;Cosine=adjacent/hypotenuse">${esc((q.pairs||[]).map(p=>p.join("=")).join("\n"))}</textarea><p class="hint">Students see the right-hand items shuffled in a dropdown.</p>`;
-  else x=`<label class="f" for="qa">Model answer / rubric (optional, shown to students when you release answers)</label><textarea id="qa" rows="3">${esc(q.t==="es"?q.a||"":"")}</textarea><p class="hint">Essay items are graded by you. Activities with essays allow only 1 attempt.</p>`;
+  else if(t==="id"||t==="sa")x=`<label class="f" for="qa">Accepted answers (separate with |)</label><input id="qa" value="${esc(q.t==="id"||q.t==="sa"?q.a||"":"")}" placeholder="Manila|Maynila">`;
+  else if(t==="mt")x=`<label class="f" for="qm">Pairs (left=right, one per line)</label><textarea id="qm" rows="4" placeholder="Sine=opposite/hypotenuse&#10;Cosine=adjacent/hypotenuse">${esc((q.pairs||[]).map(p=>p.join("=")).join("\n"))}</textarea>`;
+  else x=`<label class="f" for="qa">Model answer / rubric</label><textarea id="qa" rows="3">${esc(q.t==="es"?q.a||"":"")}</textarea><p class="hint">Graded by you. Essays allow 1 attempt.</p>`;
   return `<div class="g2"><div><label class="f" for="qt">Type</label><select id="qt">${Object.entries(TYPES).map(([k,l])=>`<option value="${k}" ${k===t?"selected":""}>${l}</option>`).join("")}</select></div>
   <div><label class="f" for="qpts">Points${t==="mt"?" (per pair)":""}</label><input id="qpts" type="number" min="1" max="100" value="${q.pts||1}"></div></div>
   <label class="f" for="qp">Question</label><textarea id="qp" rows="2">${esc(q.p||"")}</textarea>${imgBox()}${x}
@@ -219,6 +301,7 @@ pages.editor=async([loadId,actId])=>{
     E.qs=a.questions.map((q,i)=>{const k=key[i],o={t:q.t,p:q.p,pts:q.pts||1};if(q.img)o.img=q.img;
       if(q.t==="mc"){o.o=q.o;o.a=k}else if(q.t==="tf")o.a=k;else if(q.t==="mt")o.pairs=q.l.map((l,j)=>[l,k[j]]);else o.a=k||"";return o});
   }else{try{const d=JSON.parse(localStorage.getItem(dkey(loadId)));if(d){E.meta={...E.meta,...d.meta};E.qs=d.qs||[]}}catch{}}
+  if(PRE&&!actId)E.meta.topic=PRE;PRE="";
   const m=E.meta;
   S.after=()=>{
     const root=$("#ed");
@@ -232,46 +315,45 @@ pages.editor=async([loadId,actId])=>{
     drawList();$("#qf").innerHTML=qform();
   };
   const mv=(id,l,inner)=>`<div><label class="f" for="${id}">${l}</label>${inner}</div>`;
-  const topics=[...new Set((await list("activities",where("loadId","==",loadId))).map(a=>a.topic).filter(Boolean))].sort();
+  const [tp,ac]=await Promise.all([list("topics",where("loadId","==",loadId)).catch(()=>[]),list("activities",where("loadId","==",loadId))]);
+  const topics=[...tp.sort((x,y)=>ts(x.at)-ts(y.at)).map(t=>t.name),...[...new Set(ac.map(a=>a.topic).filter(Boolean))].filter(n=>!tp.some(t=>t.name===n)).sort()];
+  if(m.topic&&!topics.includes(m.topic))topics.push(m.topic);
   const pane=(k,l)=>`<button type="button" id="tab_${k}" class="seg ${E.tab===k?"on":""}" data-a="etab" data-id="${k}">${l}</button>`;
-  return head(actId?"Edit activity":"Create activity",`${ld.teacherName||""}`,`<a class="btn ghost" href="#/load/${loadId}/activities">← Back</a>`)+`<div id="ed">
-  ${actId&&E.subs?`<div class="card" style="border-color:#d97706"><b>${E.subs} student(s) have already submitted.</b><p class="mut sm">Their recorded scores will NOT be recalculated if you change questions or answers.</p></div>`:""}
-  <div class="card"><h3>1 · Details</h3>
+  return head(actId?"Edit activity":"Create activity","",`<a class="btn ghost" href="#/load/${loadId}/activities">← Back</a>`)+`<div id="ed">
+  ${actId&&E.subs?`<div class="card" style="border-color:#d97706"><b>${E.subs} student(s) already submitted.</b><p class="mut sm">Recorded scores are not recalculated if you change questions or answers.</p></div>`:""}
+  <div class="card"><h3>Details</h3>
   ${mv("m_title","Title",`<input id="m_title" value="${esc(m.title)}" placeholder="e.g. Quiz 1 – Trigonometric Ratios">`)}
-  <div class="g2">${mv("m_topic","Topic (groups activities, optional)",`<input id="m_topic" list="topics" value="${esc(m.topic)}" placeholder="e.g. Unit 7 – Trigonometry"><datalist id="topics">${topics.map(t=>`<option value="${esc(t)}">`).join("")}</datalist>`)}
-  ${mv("m_att","Attempts allowed (best score kept)",`<select id="m_att">${[1,2,3].map(n=>`<option ${m.attempts==n?"selected":""}>${n}</option>`).join("")}</select>`)}</div>
-  <label class="f" for="m_instr">Instructions (optional)</label><textarea id="m_instr" rows="2">${esc(m.instr)}</textarea>
-  <label class="f" for="m_links">Attach modules / Learning Activity Sheets (optional — one per line: Title https://drive.google.com/…)</label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links||[]).map(l=>(l.t?l.t+" ":"")+l.u).join("\n"))}</textarea>
-  <p class="hint">In Google Drive set sharing to “Anyone with the link can view”.</p></div>
-  <div class="card"><h3>2 · Questions</h3>
-  <div class="segs">${pane("type","Type questions")}${pane("word","Upload Word file")}${pane("paste","Paste text")}</div>
+  <div class="g2">${mv("m_topic","Topic",`<select id="m_topic"><option value="" disabled ${m.topic?"":"selected"}>Select topic</option>${topics.map(t=>`<option ${t===m.topic?"selected":""}>${esc(t)}</option>`).join("")}</select>${topics.length?"":`<p class="hint"><a href="#/load/${loadId}/activities">Create a topic</a> first.</p>`}`)}
+  ${mv("m_att","Attempts",`<select id="m_att">${[1,2,3].map(n=>`<option ${m.attempts==n?"selected":""}>${n}</option>`).join("")}</select>`)}</div>
+  <label class="f" for="m_instr">Instructions</label><textarea id="m_instr" rows="2">${esc(m.instr)}</textarea>
+  <label class="f" for="m_links">Attached files <span class="mut">(Title link, one per line)</span></label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links||[]).map(l=>(l.t?l.t+" ":"")+l.u).join("\n"))}</textarea></div>
+  <div class="card"><h3>Questions</h3>
+  <div class="segs">${pane("type","Type")}${pane("word","Word file")}${pane("paste","Paste")}</div>
   <div id="pane_type" ${E.tab==="type"?"":"hidden"}><div id="qf"></div></div>
   <div id="pane_word" ${E.tab==="word"?"":"hidden"}>
-    <p class="hint">Upload a <b>.docx</b> test. Number each question (1. 2. 3.), label choices A, B, C, D, and show the answer by making the correct choice <b>bold or underlined</b>, putting <code>*</code> before it, writing <code>Answer: B</code> under the question, or adding an <code>Answer key: 1.B 2.C</code> list at the end. Pictures placed with a question are kept and shown above its choices.</p>
-    <div class="g2"><div><label class="f" for="docpts">Points per question</label><input id="docpts" type="number" min="1" max="100" value="1"></div>
-    <div><label class="f" for="docf">Word file</label><input id="docf" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></div></div>
+    <p class="hint">Use a <b>.docx</b>: number questions (1. 2. 3.), label choices A–D, and mark the correct one in <b>bold</b>, underline, <code>*</code>, an <code>Answer: B</code> line, or an <code>Answer key:</code> list. Pictures are kept.</p>
+    <div class="g2"><div><label class="f" for="docpts">Points each</label><input id="docpts" type="number" min="1" max="100" value="1"></div>
+    <div><label class="f" for="docf">File</label><input id="docf" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></div></div>
     <p id="docmsg" class="sm" aria-live="polite"></p></div>
   <div id="pane_paste" ${E.tab==="paste"?"":"hidden"}>
-    <p class="hint">Paste from Word or Google Docs. Number each question, label choices A, B, C, D, and give the answer under each question (<code>Answer: B</code>), mark the correct choice with *, or add an <code>Answer key:</code> list at the end.</p>
-    <textarea id="mcbulk" rows="8" placeholder="1. What is 2 + 2?&#10;A. 3&#10;B. 4&#10;C. 5&#10;Answer: B&#10;&#10;2. Which is a prime number?&#10;A. 9&#10;B. 15&#10;*C. 7&#10;D. 21"></textarea>
-    <div class="g2"><div><label class="f" for="mcpts">Points per question</label><input id="mcpts" type="number" min="1" max="100" value="1"></div></div>
-    <p><button class="btn" data-a="qmcimport">Add multiple-choice questions</button></p>
-    <details class="alt"><summary>Advanced: one-line format for other question types</summary><p class="hint"><code>type|question|options|answer|points</code>. Types: mc, tf, id, sa, mt, es. Separate options and alternative answers with <code>;</code>. Matching: <code>left=right;left=right</code>.</p>
-    <textarea id="bulk" rows="4" placeholder="mc|Capital of the Philippines?|Manila;Cebu;Davao|Manila&#10;tf|The sum of angles in a triangle is 180°.||True&#10;id|Largest ocean?||Pacific;Pacific Ocean"></textarea><p><button class="btn ghost" data-a="qimport">Import lines</button></p></details></div>
+    <textarea id="mcbulk" rows="8" aria-label="Pasted test" placeholder="1. What is 2 + 2?&#10;A. 3&#10;B. 4&#10;C. 5&#10;Answer: B&#10;&#10;2. Which is a prime number?&#10;A. 9&#10;B. 15&#10;*C. 7&#10;D. 21"></textarea>
+    <div class="g2"><div><label class="f" for="mcpts">Points each</label><input id="mcpts" type="number" min="1" max="100" value="1"></div></div>
+    <p><button class="btn" data-a="qmcimport">Add questions</button></p>
+    <details class="alt"><summary>Other question types (one line each)</summary><p class="hint"><code>type|question|options|answer|points</code> — types: mc, tf, id, sa, mt, es. Separate options and alternatives with <code>;</code>. Matching: <code>left=right;left=right</code>.</p>
+    <textarea id="bulk" rows="4" aria-label="One-line questions" placeholder="mc|Capital of the Philippines?|Manila;Cebu;Davao|Manila&#10;tf|The sum of angles in a triangle is 180°.||True&#10;id|Largest ocean?||Pacific;Pacific Ocean"></textarea><p><button class="btn ghost" data-a="qimport">Import lines</button></p></details></div>
   <div id="qlist" style="margin-top:14px"></div></div>
-  <div class="card"><h3>3 · Schedule &amp; settings</h3><div class="g2">
-  ${mv("m_open","Opens (optional)",`<input id="m_open" type="datetime-local" value="${toLocalInput(m.opens)}">`)}
-  ${mv("m_close","Due / closes (optional)",`<input id="m_close" type="datetime-local" value="${toLocalInput(m.closes)}">`)}
-  ${mv("m_time","Time limit in minutes (0 = none)",`<input id="m_time" type="number" min="0" max="300" value="${m.timeLimit}">`)}</div>
-  <label class="f inline"><input type="checkbox" id="m_shuf" ${m.shuffle?"checked":""}> Shuffle questions and choices for each student</label>
-  <label class="f inline"><input type="checkbox" id="m_rel" ${m.release?"checked":""}> Show correct answers to students after they submit (changeable later)</label></div>
-  <div class="sticky-save"><span class="mut sm" style="flex:1;align-self:center">${actId?"Changes are saved only when you click a button.":"Your draft is also kept on this device while you work."}</span>
-  ${actId&&!m.draft?`<button class="btn ghost" data-a="esave" data-draft="1">Move to drafts</button><button class="btn" data-a="esave" data-draft="0">Save changes</button>`:`<button class="btn ghost" data-a="esave" data-draft="1">Save draft</button><button class="btn" data-a="esave" data-draft="0">Publish</button>`}</div></div>`;
+  <div class="card"><h3>Settings</h3><div class="g2">
+  ${mv("m_open","Opens",`<input id="m_open" type="datetime-local" value="${toLocalInput(m.opens)}">`)}
+  ${mv("m_close","Due",`<input id="m_close" type="datetime-local" value="${toLocalInput(m.closes)}">`)}
+  ${mv("m_time","Time limit (minutes, 0 = none)",`<input id="m_time" type="number" min="0" max="300" value="${m.timeLimit}">`)}</div>
+  <label class="f inline"><input type="checkbox" id="m_shuf" ${m.shuffle?"checked":""}> Shuffle questions and choices</label>
+  <label class="f inline"><input type="checkbox" id="m_rel" ${m.release?"checked":""}> Show correct answers after submit</label></div>
+  <div class="sticky-save">${actId&&!m.draft?`<button class="btn ghost" data-a="esave" data-draft="1">Move to drafts</button><button class="btn" data-a="esave" data-draft="0">Save changes</button>`:`<button class="btn ghost" data-a="esave" data-draft="1">Save draft</button><button class="btn" data-a="esave" data-draft="0">Publish</button>`}</div></div>`;
 };
 
 act.qadd=()=>{try{const q=readQ();if(E.edit>=0){E.qs[E.edit]=q;E.edit=-1}else E.qs.push(q);E.keep=null;redraw();toast("Question saved to the list.")}catch(e){toast(e.message,"bad")}};
 act.qcancel=()=>{E.edit=-1;redraw()};
-act.qedit=el=>{E.edit=+el.dataset.id;E.qt=E.qs[E.edit].t;E.keep=null;$("#qf").innerHTML=qform();$("#qh").scrollIntoView({behavior:"smooth"})};
+act.qedit=el=>{E.edit=+el.dataset.id;E.qt=E.qs[E.edit].t;E.keep=null;$("#qf").innerHTML=qform();$("#qf").scrollIntoView({behavior:"smooth"})};
 act.qdel=async el=>{if(await ask("Delete this question?","Delete",true)){E.qs.splice(+el.dataset.id,1);E.edit=-1;redraw()}};
 act.qdup=el=>{const i=+el.dataset.id;E.qs.splice(i+1,0,structuredClone(E.qs[i]));redraw()};
 act.qup=el=>{const i=+el.dataset.id;if(i>0){[E.qs[i-1],E.qs[i]]=[E.qs[i],E.qs[i-1]];E.edit=-1;redraw()}};
@@ -346,6 +428,7 @@ act.etab=el=>{E.tab=el.dataset.id;["type","word","paste"].forEach(k=>{$("#pane_"
 act.esave=async el=>{
   readMeta();const m=E.meta;
   if(!m.title)return toast("Give the activity a title.","bad");
+  if(!m.topic)return toast("Choose a topic. Create topics in the Classwork tab.","bad");
   const draft=el.dataset.draft==="1";
   if(!E.qs.length&&!draft)return toast("Add at least one question.","bad");
   if(m.opens&&m.closes&&m.closes<=m.opens)return toast("The deadline must be after the opening time.","bad");
@@ -409,7 +492,7 @@ pages.advisory=async([sid])=>{
   (S.advSecs.length>1?`<div class="row" style="margin-bottom:12px">${S.advSecs.map(s=>`<a class="btn sm ${s.id===sec.id?"":"ghost"}" href="#/advisory/${s.id}">${esc(s.name)}</a>`).join("")}</div>`:"")+
   `<div class="card"><h3>Pending student approvals</h3>${tbl(["Name","LRN","Email",""],pending.map(x=>[esc(x.name),esc(x.lrn||"–"),esc(x.email),btn("apvstu","Approve",x.id,"ok")]),"No pending students.")}</div>
   <div class="card"><div class="row between"><h3>Consolidated grades</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
-  ${tbl(["Student",...cols.map(c=>esc(c.n)),"General avg"],rows.map(r=>[esc(r.s.name),...r.vals.map(fm),`<b>${fm(r.gen)}</b>`]),"No approved students yet.","rec")}
+  ${tbl(["Student",...cols.map(c=>esc(c.n)),"General avg"],rows.map(r=>[esc(r.s.name),...r.vals.map(fm),`<b>${fm(r.gen)}</b>`]),"No approved students yet.","rec nw")}
   <p class="hint">Averages use each student's best graded score per activity. Missing work is not counted as zero.</p></div>`;
 };
 act.apvstu=async el=>{await updateDoc(doc(db,"users",el.dataset.id),{status:"approved"});log("approved student "+el.dataset.id);toast("Student approved.");refresh()};
