@@ -490,3 +490,13 @@ img.avatar{display:block}
 .wl{display:flex;flex-direction:column;gap:6px;margin-top:8px}
 .wr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px}
 .wr label{display:flex;gap:8px;align-items:center;flex:1}.wr span{display:flex;gap:4px}
+
+/* teacher My Classes: whole card is the link, no underlines */
+a.card.clk,a.card.clk *,a.card.clk:hover,a.card.clk:hover *{text-decoration:none}
+/* student term dropdown */
+.termwrap{position:relative;display:inline-block}
+.termbtn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:7px 14px;font:inherit;font-weight:600;cursor:pointer;min-height:38px}
+.termbtn .ic{width:16px;height:16px;color:var(--pri)}.termbtn .caret{font-style:normal;font-size:11px;color:var(--mut)}
+.termmenu{position:absolute;left:0;top:calc(100% + 6px);min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh);padding:4px;z-index:30;display:flex;flex-direction:column}
+.termmenu button{border:0;background:none;text-align:left;font:inherit;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--ink)}
+.termmenu button:hover,.termmenu button.on{background:var(--soft);color:var(--pri);font-weight:600}
