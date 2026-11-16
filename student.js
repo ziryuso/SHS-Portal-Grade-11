@@ -78,8 +78,10 @@ pages.subjects=async()=>{const d=await data();
 pages.subject=async([id])=>{
   const d=await data(),l=d.loads.find(x=>x.id===id);
   if(!l)return `<div class="card">${empty("Subject not found.")}<p class="right"><a class="btn" href="#/subjects">Back</a></p></div>`;
-  const matsAll=(await list("materials",where("loadId","==",id))).sort((a,b)=>ts(b.at)-ts(a.at)),mats=matsAll.filter(m=>!m.topic);
-  const anns=(await list("classAnn",where("loadId","==",id)).catch(()=>[])).sort((a,b)=>ts(b.at)-ts(a.at));
+  /* Ask Firestore only for this student's section (what the rules allow), then pick this subject here. */
+  const sid=S.me.sectionId;
+  const matsAll=(await list("materials",where("sectionId","==",sid)).catch(()=>[])).filter(m=>m.loadId===id).sort((a,b)=>ts(b.at)-ts(a.at)),mats=matsAll.filter(m=>!m.topic);
+  const anns=(await list("classAnn",where("sectionId","==",sid)).catch(()=>[])).filter(x=>x.loadId===id).sort((a,b)=>ts(b.at)-ts(a.at));
   const tp=t=>t?anns.filter(x=>x.topic===t).map(x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div></div>`).join("")+matsAll.filter(m=>m.topic===t).map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}</div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a></div>`).join(""):"";
   const as=d.acts.filter(a=>a.loadId===id);
   return head(subjName(d,l),l.teacherName?"Teacher: "+l.teacherName:"",`<a class="btn ghost" href="#/subjects">← Subjects</a>`)+
