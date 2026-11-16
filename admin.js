@@ -107,17 +107,47 @@ act.deact=async el=>{if(!await ask("Deactivate this account? They will not be ab
 act.delprof=async el=>{if(!await ask("Delete this profile? Their submissions stay in the database.","Delete",true))return;await deleteDoc(doc(db,"users",el.dataset.id));log("deleted profile "+el.dataset.id);toast("Profile deleted.");refresh()};
 
 /* ---------- curriculum ---------- */
+const CF={sy:"",grade:"",term:"",track:""},CUR={subs:[]};
+const sGrade=x=>x.grade||"Grade 11",sYear=x=>x.schoolYear||S.set.schoolYear||"";
+const termTxt=t=>!t||t==="all"?"All terms":"Term "+t;
+const curRows=()=>CUR.subs.filter(x=>(!CF.sy||sYear(x)===CF.sy)&&(!CF.grade||sGrade(x)===CF.grade)
+  &&(!CF.term||!x.term||x.term==="all"||String(x.term)===CF.term)&&(!CF.track||!x.track||x.track==="All tracks"||x.track===CF.track));
+const curList=()=>{const r=curRows();return `<div class="muted sm mut" style="margin-bottom:6px">${r.length} of ${CUR.subs.length} subject(s)</div>`+
+  tbl(["Subject","Grade","School year","Type","Term","Track",""],r.map(x=>[esc(x.name),esc(sGrade(x)),esc(sYear(x)||"–"),esc(x.type),termTxt(x.term),esc(x.track),
+    `<div class="row">${btn("editsub","Edit",x.id,"ghost")}${btn("delsub","Delete",x.id,"danger")}</div>`]),"No subjects match these filters.")};
 pages.curriculum=async()=>{
-  const s=(await list("subjects")).sort(byName);
-  return head("SHS Curriculum","Subjects offered in Grade 11")+`<div class="card"><h3>Add a subject</h3><div class="g2">
-  <div><label class="f" for="sn">Subject name</label><input id="sn" placeholder="e.g. General Mathematics"></div>
-  <div><label class="f" for="st">Type</label><select id="st"><option>core</option><option>elective</option></select></div>
-  <div><label class="f" for="stm">Term</label><select id="stm"><option value="all">All terms</option><option>1</option><option>2</option><option>3</option></select></div>
-  <div><label class="f" for="stk">Track</label><select id="stk"><option>All tracks</option><option>Academic</option><option>TVL</option></select></div></div>
-  <label class="f" for="sd">Description</label><textarea id="sd" rows="2"></textarea><p><button class="btn" data-a="addsub">Add subject</button></p></div>
-  <div class="card">${tbl(["Subject","Type","Term","Track",""],s.map(x=>[esc(x.name),esc(x.type),esc(x.term),esc(x.track),btn("delsub","Delete",x.id,"danger")]),"No subjects yet.")}</div>`;
+  CUR.subs=(await list("subjects")).sort(byName);
+  const years=[...new Set([S.set.schoolYear,...CUR.subs.map(sYear)].filter(Boolean))].sort().reverse();
+  const sel=(f,id,label,opts)=>`<div><label class="f" for="${id}">${label}</label><select id="${id}" data-c="cf" data-f="${f}"><option value="">All</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${CF[f]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`;
+  return head("SHS Curriculum","Subjects offered",`<button class="btn" data-a="addsub">+ Add subject</button>`)+
+  `<div class="card"><div class="g2">${sel("sy","cf_sy","School year",years.map(y=>[y,y]))}${sel("grade","cf_gr","Grade",[["Grade 11","Grade 11"],["Grade 12","Grade 12"]])}
+  ${sel("term","cf_tm","Term",[["1","Term 1"],["2","Term 2"],["3","Term 3"]])}${sel("track","cf_tk","Track",[["Academic","Academic"],["TVL","TVL"]])}</div></div>
+  <div class="card" id="curlist">${curList()}</div>`;
 };
-act.addsub=async()=>{if(!v("sn"))return toast("Enter the subject name.","bad");await addDoc(collection(db,"subjects"),{name:v("sn"),type:v("st"),term:v("stm"),track:v("stk"),description:v("sd")});log("added subject "+v("sn"));toast("Subject added.");refresh()};
+chg.cf=el=>{CF[el.dataset.f]=el.value;const c=document.getElementById("curlist");if(c)c.innerHTML=curList()};
+/* add / edit in a pop-up: Save stores it and closes */
+function subDialog(x){
+  const o=(arr,cur)=>arr.map(([v,t])=>`<option value="${esc(v)}" ${String(cur)===v?"selected":""}>${esc(t)}</option>`).join("");
+  const d=document.createElement("dialog");d.className="modal";
+  d.innerHTML=`<h3>${x?"Edit subject":"Add subject"}</h3>
+  <label class="f" for="d_sn">Subject name</label><input id="d_sn" value="${esc(x?.name||"")}" placeholder="e.g. General Mathematics">
+  <div class="g2"><div><label class="f" for="d_gr">Grade</label><select id="d_gr">${o([["Grade 11","Grade 11"],["Grade 12","Grade 12"]],x?sGrade(x):"Grade 11")}</select></div>
+  <div><label class="f" for="d_sy">School year</label><input id="d_sy" value="${esc(x?sYear(x):S.set.schoolYear)}" placeholder="2026–2027"></div>
+  <div><label class="f" for="d_st">Type</label><select id="d_st">${o([["core","core"],["elective","elective"]],x?.type||"core")}</select></div>
+  <div><label class="f" for="d_tm">Term</label><select id="d_tm">${o([["all","All terms"],["1","Term 1"],["2","Term 2"],["3","Term 3"]],x?.term||"all")}</select></div></div>
+  <label class="f" for="d_tk">Track</label><select id="d_tk">${o([["All tracks","All tracks"],["Academic","Academic"],["TVL","TVL"]],x?.track||"All tracks")}</select>
+  <label class="f" for="d_sd">Description</label><textarea id="d_sd" rows="2">${esc(x?.description||"")}</textarea>
+  <p class="bad sm" id="d_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">Save</button></div>`;
+  return new Promise(res=>{let done=false;const fin=r=>{if(done)return;done=true;d.close();d.remove();res(r)};
+    d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.value!=="1")return fin(null);
+      const g=i=>d.querySelector("#d_"+i).value.trim(),r={name:g("sn"),grade:g("gr"),schoolYear:g("sy"),type:g("st"),term:g("tm"),track:g("tk"),description:g("sd")};
+      if(!r.name){d.querySelector("#d_err").textContent="Enter the subject name.";return}fin(r)});
+    d.addEventListener("cancel",e=>{e.preventDefault();fin(null)});
+    document.body.append(d);d.showModal();d.querySelector("#d_sn").focus()});
+}
+act.addsub=async()=>{const r=await subDialog();if(!r)return;await addDoc(collection(db,"subjects"),r);log("added subject "+r.name);toast("Subject added.");refresh()};
+act.editsub=async el=>{const x=CUR.subs.find(s=>s.id===el.dataset.id);if(!x)return;const r=await subDialog(x);if(!r)return;
+  await updateDoc(doc(db,"subjects",x.id),r);log("edited subject "+r.name);toast("Subject saved.");refresh()};
 act.delsub=async el=>{if(await ask("Delete this subject?","Delete",true)){await deleteDoc(doc(db,"subjects",el.dataset.id));toast("Deleted.");refresh()}};
 
 /* ---------- sections & loads ---------- */
