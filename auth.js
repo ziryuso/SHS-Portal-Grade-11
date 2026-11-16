@@ -3,9 +3,11 @@ import {GoogleAuthProvider,signInWithPopup,signOut,signInWithEmailAndPassword,cr
 
 const PEND="portal:pending";
 const ini=esc(SCHOOL.split(/\s+/).map(w=>w[0]).join("").slice(0,3).toUpperCase());
-const wrap=inner=>`<div class="auth1"><div class="authw"><div class="brandh"><img class="logo-img big" src="logo.jpg" alt="TTVHS logo"><h1><span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span></h1></div><div class="card authc">${inner}</div></div></div>`;
+const wrap=(inner,cls="")=>`<div class="auth1"><div class="authw"><div class="brandh"><img class="logo-img big" src="logo.jpg" alt="TTVHS logo"><h1><span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span></h1></div><div class="card authc ${cls}">${inner}</div></div></div>`;
 const PRIV=`<label class="chk"><input type="checkbox" id="priv"><span>I agree to the terms: the school may keep my name, email and scores in this portal for class use (Data Privacy Act of 2012, RA 10173).</span></label>`;
 const G_ICON=`<svg class="gi" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.800 2.400 30.300 0 24 0 14.600 0 6.500 5.400 2.600 13.200l7.900 6.100C12.400 13.600 17.700 9.500 24 9.500z"/><path fill="#4285F4" d="M46.500 24.500c0-1.600-.1-3.100-.4-4.500H24v9h12.700c-.6 3-2.300 5.500-4.800 7.200l7.500 5.800c4.400-4.100 7.100-10.100 7.100-17.500z"/><path fill="#FBBC05" d="M10.500 28.700c-.5-1.400-.8-3-.8-4.700s.3-3.200.8-4.700l-7.900-6.100C.9 16.400 0 20.100 0 24s.9 7.600 2.600 10.800l7.900-6.100z"/><path fill="#34A853" d="M24 48c6.500 0 11.900-2.100 15.900-5.800l-7.500-5.800c-2.100 1.400-4.800 2.300-8.400 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>`;
+const MAIL_ICON=`<svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>`;
+const LOCK_ICON=`<svg class="fic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>`;
 const IN_ICON=`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M15 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/></svg>`;
 const googleBtn=(a,t)=>`<button type="button" class="gbtn glg" data-a="${a}">${G_ICON}<span>${t}</span></button>`;
 const persist=async(keep)=>{try{await setPersistence(auth,keep?browserLocalPersistence:browserSessionPersistence)}catch{}};
@@ -32,24 +34,26 @@ const quiet=e=>e?.code==="auth/popup-closed-by-user"||e?.code==="auth/cancelled-
 
 export async function loginView(){
   let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch{}
-  $("#app").innerHTML=wrap(`${inApp?`<div class="note big"><b>You are inside Messenger/Facebook.</b> Google sign-in is blocked in this window.<br>${isAndroid?`Tap <b>Open in Chrome</b> to continue the normal way.`:`Tap the <b>•••</b> menu (or the Safari icon) and choose <b>Open in Browser / Open in Safari</b>, or copy the link and paste it in your browser.`}<div class="row" style="margin-top:8px">${isAndroid?`<button type="button" class="btn sm" data-a="openext">Open in Chrome</button>`:""}<button type="button" class="btn sm ghost" data-a="copylink">Copy link</button></div><div class="hint">You can also sign in or register right here with email and password.</div></div>`:""}
-  <div id="p_in" class="lg">
-    <input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email">
-    <input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password">
-    <div class="lg-row"><button type="button" class="btn lg-sm" data-a="emlogin">${IN_ICON}<span>Sign in</span></button>
-      <label class="lg-rm"><input type="checkbox" id="rem"><span>Remember me</span></label></div>
-    <div class="lg-links"><a href="#" data-a="forgot">I forgot my password</a><a href="#" data-a="authtab" data-id="up">Register New Account</a></div>
-    ${inApp?"":`<div class="or"><span>or</span></div>`}
-    ${inApp?"":googleBtn("login","Sign in with Google")}
+  const note=inApp?`<div class="note big"><b>You are inside Messenger/Facebook.</b> Google sign-in is blocked in this window.<br>${isAndroid?`Tap <b>Open in Chrome</b> to continue the normal way.`:`Tap the <b>•••</b> menu (or the Safari icon) and choose <b>Open in Browser / Open in Safari</b>, or copy the link and paste it in your browser.`}<div class="row" style="margin-top:8px">${isAndroid?`<button type="button" class="btn sm" data-a="openext">Open in Chrome</button>`:""}<button type="button" class="btn sm ghost" data-a="copylink">Copy link</button></div><div class="hint">You can also sign in or register right here with email and password.</div></div>`:"";
+  $("#app").innerHTML=wrap(`<div id="p_in">
+    <div class="ac-h">Sign in to start your session</div>
+    <div class="ac-b lg">${note}
+      <div class="fi">${MAIL_ICON}<input id="em" type="email" autocomplete="username" placeholder="Email" aria-label="Email"></div>
+      <div class="fi">${LOCK_ICON}<input id="pw" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password"></div>
+      <div class="lg-row"><label class="lg-rm"><input type="checkbox" id="rem"><span>Remember me</span></label>
+        <button type="button" class="btn lg-sm" data-a="emlogin"><span>Sign in</span>${IN_ICON}</button></div>
+    </div>
+    <div class="ac-f"><div class="lg-links"><a href="#" data-a="forgot">I forgot my password</a><a href="#" data-a="authtab" data-id="up">Register New Account</a></div>
+      ${inApp?"":`<div class="or"><span>or</span></div>${googleBtn("login","Sign in with Google")}`}</div>
   </div>
-  <div id="p_up" class="lg" style="display:none">
-    <h2 class="lg-h">Register New Account</h2>
-    ${profileFields(secs)}
-    ${PRIV}
-    ${inApp?`<input id="em2" type="email" autocomplete="username" placeholder="Email" aria-label="Email"><input id="pw2" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password"><button type="button" class="btn lg-sm lg-wide" data-a="upemail">Create account</button>`:googleBtn("upgoogle","Sign up with Google")}
-    <p class="hint" style="text-align:center">Your account will wait for approval by your teacher adviser or the administrator.</p>
-    <p class="lg-links" style="justify-content:center"><a href="#" data-a="authtab" data-id="in">Back to sign in</a></p>
-  </div>`);
+  <div id="p_up" style="display:none">
+    <div class="ac-h">Register New Account</div>
+    <div class="ac-b lg">${profileFields(secs)}${PRIV}
+      ${inApp?`<div class="fi">${MAIL_ICON}<input id="em2" type="email" autocomplete="username" placeholder="Email" aria-label="Email"></div><div class="fi">${LOCK_ICON}<input id="pw2" type="password" autocomplete="new-password" placeholder="Password (6+ characters)" aria-label="Password"></div><button type="button" class="btn lg-sm lg-wide" data-a="upemail">Create account</button>`:googleBtn("upgoogle","Sign up with Google")}
+    </div>
+    <div class="ac-f"><p class="hint" style="text-align:center;margin:0 0 6px">Your account will wait for approval by your teacher adviser or the administrator.</p>
+      <div class="lg-links"><a href="#" data-a="authtab" data-id="in">Back to sign in</a></div></div>
+  </div>`,"acard");
   if(inApp&&isAndroid&&!sessionStorage.getItem("portal:ext")){sessionStorage.setItem("portal:ext","1");setTimeout(()=>{location.href=chromeUrl()},400)}
   $("#pw")?.addEventListener("keydown",e=>{if(e.key==="Enter")$("[data-a=emlogin]")?.click()});
 }
