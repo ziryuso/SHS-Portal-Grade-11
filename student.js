@@ -82,7 +82,8 @@ pages.subjects=async()=>{const d=await data();
 const V={};
 const NOTEXT={mat:"book",ann:"bell",act:"list"};
 const itemsOf=()=>[...V.mats.map(x=>({k:"mat",x})),...V.anns.map(x=>({k:"ann",x})),...V.as.map(x=>({k:"act",x}))].map(i=>({...i,term:i.x.term||0,week:i.x.week||0,at:ts(i.x.at)}));
-const inView=i=>i.term===V.term&&(V.week===0||i.week===V.week);
+/* posts that have no term/week yet (older ones) show under "All" weeks of every term, at the bottom */
+const inView=i=>V.week===0?(i.term===V.term||i.term===0):(i.term===V.term&&i.week===V.week);
 const matRow=m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a></div>`;
 const annRow=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div></div>`;
 const actRow=a=>{const s=V.d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
@@ -96,10 +97,10 @@ const byTopic=(arr,cls)=>{const g=groupBy(arr,i=>i.x.topic||""),ks=Object.keys(g
   return ks.map(t=>`<div class="card"><h3>${t?esc(t):"Other"}</h3>${g[t].map(rowOf).join("")}</div>`).join("")};
 
 function sjView(){
-  const all=itemsOf(),hasLegacy=all.some(i=>!i.term),terms=[1,2,3,...(hasLegacy?[0]:[])];
+  const all=itemsOf();
   const inTerm=all.filter(i=>i.term===V.term),maxW=Math.max(10,...inTerm.map(i=>i.week));
   const todoAct=i=>i.k==="act"&&["open","progress"].includes(status(i.x,V.d.sm[i.x.id]));
-  const weeks=V.term?[0,...Array.from({length:maxW},(_,i)=>i+1)]:[];
+  const weeks=[0,...Array.from({length:maxW},(_,i)=>i+1)];
   const wk=weeks.map(w=>{const its=inTerm.filter(i=>w===0||i.week===w),hot=its.some(todoAct);
     return `<button class="wk ${V.week===w?"on":""}" data-a="sj_week" data-w="${w}">${w?"Wk "+w:"All"}${hot?`<i class="dot hot"></i>`:its.length&&w?`<i class="dot"></i>`:""}</button>`}).join("");
   const vis=all.filter(inView).sort((a,b)=>b.at-a.at),acts=vis.filter(i=>i.k==="act").sort((a,b)=>(a.x.closes||9e15)-(b.x.closes||9e15)),mats=vis.filter(i=>i.k==="mat");
@@ -110,19 +111,22 @@ function sjView(){
     const due=V.as.filter(a=>a.closes&&["open","progress","retake"].includes(status(a,V.d.sm[a.id]))).sort((a,b)=>a.closes-b.closes).slice(0,3);
     const g=groupBy(vis,i=>i.week),ks=Object.keys(g).map(Number).sort((a,b)=>b-a);
     body=(due.length?`<div class="card due"><h3>Due soon</h3>${due.map(a=>`<div class="item"><div><b>${esc(a.title)}</b><div class="mut sm">${dueTxt(a)}</div></div><a class="btn sm" href="#/take/${a.id}">Open</a></div>`).join("")}</div>`:"")+
-    (ks.map(w=>`<div class="tlg"><div class="tlh">${w?"Week "+w:"No week set"}</div>${g[w].map(i=>`<div class="tl"><span class="tli">${ic(NOTEXT[i.k])}</span><div class="tlb">${rowOf(i)}</div></div>`).join("")}</div>`).join("")||`<div class="card">${empty("Nothing posted for this selection yet.","clock")}</div>`);
+    (ks.map(w=>`<div class="tlg"><div class="tlh">${w?"Week "+w:"Earlier posts"}</div>${g[w].map(i=>`<div class="tl"><span class="tli">${ic(NOTEXT[i.k])}</span><div class="tlb">${rowOf(i)}</div></div>`).join("")}</div>`).join("")||`<div class="card">${empty("Nothing posted for this selection yet.","clock")}</div>`);
   }else if(V.tab==="work"){
     const F={all:"All",todo:"To do",done:"Done",missed:"Missed"},stOf=i=>status(i.x,V.d.sm[i.x.id]);
     const ok=i=>V.f==="all"||(V.f==="todo"&&["open","progress","retake"].includes(stOf(i)))||(V.f==="done"&&["done","retake"].includes(stOf(i)))||(V.f==="missed"&&stOf(i)==="missed");
     const list=acts.filter(ok);
     body=`<div class="fchips">${Object.entries(F).map(([k,l])=>`<button class="wk ${V.f===k?"on":""}" data-a="sj_f" data-k="${k}">${l}</button>`).join("")}</div>`+(byTopic(list)||`<div class="card">${empty("No classwork here.","list")}</div>`);
   }else body=byTopic(mats)||`<div class="card">${empty("No learning materials here.","book")}</div>`;
-  return `<div class="sjnav"><div class="terms">${terms.map(t=>`<button class="seg ${V.term===t?"on":""}" data-a="sj_term" data-t="${t}">${t?"Term "+t:"Unsorted"}</button>`).join("")}</div>
-  ${V.term?`<div class="wks" role="tablist" aria-label="Week">${wk}</div>`:""}
+  return `<div class="sjnav"><div class="termwrap"><button class="termbtn" data-a="sj_menu" aria-haspopup="listbox" aria-expanded="${V.menu?"true":"false"}">${ic("clock")}<span>Term ${V.term}</span><i class="caret">▾</i></button>
+  ${V.menu?`<div class="termmenu" role="listbox">${[1,2,3].map(t=>`<button class="${V.term===t?"on":""}" role="option" aria-selected="${V.term===t}" data-a="sj_term" data-t="${t}">Term ${t}${V.term===t?" ✓":""}</button>`).join("")}</div>`:""}</div>
+  <div class="wks" aria-label="Week">${wk}</div>
   <div class="tabs">${tab("timeline","Timeline")}${tab("work","Classwork")}${tab("mats","Learning Materials")}</div></div>${body}`;
 }
 const sjDraw=()=>{const w=document.getElementById("sjw");if(w)w.innerHTML=sjView()};
-act.sj_term=el=>{V.term=+el.dataset.t;V.week=0;sjDraw()};
+act.sj_menu=()=>{V.menu=!V.menu;sjDraw()};
+act.sj_term=el=>{V.term=+el.dataset.t;V.week=0;V.menu=false;sjDraw()};
+document.addEventListener("click",e=>{if(V.menu&&!e.composedPath().some(n=>n instanceof Element&&n.matches(".termwrap"))){V.menu=false;sjDraw()}});
 act.sj_week=el=>{V.week=+el.dataset.w;sjDraw()};
 act.sj_tab=el=>{V.tab=el.dataset.k;sjDraw()};
 act.sj_f=el=>{V.f=el.dataset.k;sjDraw()};
@@ -133,8 +137,8 @@ pages.subject=async([id])=>{
   /* Ask Firestore only for this student's section (what the rules allow), then pick this subject here. */
   const sid=S.me.sectionId;
   const [mats,anns]=await Promise.all([list("materials",where("sectionId","==",sid)).catch(()=>[]),list("classAnn",where("sectionId","==",sid)).catch(()=>[])]);
-  Object.assign(V,{d,l,mats:mats.filter(m=>m.loadId===id),anns:anns.filter(x=>x.loadId===id),as:d.acts.filter(a=>a.loadId===id),week:0,tab:"timeline",f:"all",term:curTerm()});
-  const all=itemsOf();if(!all.some(i=>i.term===V.term)&&all.length)V.term=[1,2,3,0].find(t=>all.some(i=>i.term===t))??V.term;
+  Object.assign(V,{d,l,mats:mats.filter(m=>m.loadId===id),anns:anns.filter(x=>x.loadId===id),as:d.acts.filter(a=>a.loadId===id),week:0,menu:false,tab:"timeline",f:"all",term:curTerm()});
+  const all=itemsOf();if(!all.some(i=>i.term===V.term)&&all.length)V.term=[1,2,3].find(t=>all.some(i=>i.term===t))??V.term;
   const s=d.subjects.find(x=>x.id===l.subjectId)||{};
   return `<div class="sjtop" style="--c:${colorOf(s.name||l.id)}"><a class="back" href="#/subjects">← Subjects</a><h1>${esc(subjName(d,l))}</h1>${l.teacherName?`<div>Teacher: ${esc(l.teacherName)}</div>`:""}</div><div id="sjw">${sjView()}</div>`;
 };
