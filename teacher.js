@@ -21,7 +21,7 @@ const mini=(label,value,icon,tone="")=>`<div class="stat ${tone}"><div class="si
 /* small pop-up form used for topics, announcements and materials */
 const fdlg=(title,fields,ok="Save",chk)=>new Promise(res=>{
   const d=document.createElement("dialog");d.className="modal";
-  d.innerHTML=`<h3>${esc(title)}</h3>${fields.map(f=>`<label class="f" for="fd_${f.k}">${esc(f.l)}</label>${f.ta?`<textarea id="fd_${f.k}" rows="3"></textarea>`:`<input id="fd_${f.k}" ${f.type?`type="${f.type}"`:""} placeholder="${esc(f.ph||"")}">`}`).join("")}<p class="bad sm" id="fd_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">${esc(ok)}</button></div>`;
+  d.innerHTML=`<h3>${esc(title)}</h3>${fields.map(f=>`<label class="f" for="fd_${f.k}">${esc(f.l)}</label>${f.sel?`<select id="fd_${f.k}">${f.sel.map(([x,t])=>`<option value="${x}" ${x==f.def?"selected":""}>${esc(t)}</option>`).join("")}</select>`:f.ta?`<textarea id="fd_${f.k}" rows="3"></textarea>`:`<input id="fd_${f.k}" ${f.type?`type="${f.type}"`:""} placeholder="${esc(f.ph||"")}">`}`).join("")}<p class="bad sm" id="fd_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">${esc(ok)}</button></div>`;
   let done=false;const fin=r=>{if(done)return;done=true;d.close();d.remove();res(r)};
   d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
     if(b.value!=="1")return fin(null);
@@ -32,6 +32,10 @@ const fdlg=(title,fields,ok="Save",chk)=>new Promise(res=>{
   d.addEventListener("cancel",e=>{e.preventDefault();fin(null)});
   document.body.append(d);d.showModal();d.querySelector("input,textarea")?.focus();
 });
+/* term + week: every post is filed under a Term (1-3) and a Week (1-20) so students see it on the right tab */
+const curTerm=()=>{const n=+((S.set.term||"").match(/\d/)||[1])[0];return n>=1&&n<=3?n:1};
+const TW=(t,w)=>[{k:"term",l:"Term",sel:[[1,"Term 1"],[2,"Term 2"],[3,"Term 3"]],def:t||curTerm()},{k:"week",l:"Week",sel:Array.from({length:20},(_,i)=>[i+1,"Week "+(i+1)]),def:w||1}];
+const twBadge=x=>x.term?` <span class="badge mut">T${x.term} · W${x.week}</span>`:` <span class="badge warn">No week</span>`;
 async function myLoads(){
   const [loads,subs,secs]=await Promise.all([list("loads",where("teacherUid","==",S.me.uid)),list("subjects"),list("sections")]);
   return loads.map(l=>({...l,sn:subs.find(x=>x.id===l.subjectId)?.name||"?",sec:secs.find(x=>x.id===l.sectionId)?.name||"?"}));
@@ -50,13 +54,40 @@ pages.home=async()=>{
   if(S.advSecs.length){const p=(await inQ("users","sectionId",S.advSecs.map(s=>s.id))).filter(u=>u.role==="student"&&u.status==="pending");
     adv=p.length?`<div class="card" style="border-color:var(--pri)"><div class="row between"><div><b>${p.length} student${p.length>1?"s":""} waiting for your approval</b><div class="mut sm">Advisory: ${esc(S.advSecs.map(s=>s.name).join(", "))}</div></div><a class="btn" href="#/advisory">Review</a></div></div>`:""}
   const recent=[...subs].sort((a,b)=>ts(b.at)-ts(a.at)).slice(0,6);
+  const {order,hide}=dashPrefs(),show=id=>!hide.includes(id);
+  const P={
+    overview:`<div class="card"><h3>Overview</h3><div class="statgrp">${mini("My classes",loads.length,"book")}${mini("Students",studs.length,"users")}${mini("Activities",acts.length,"list")}${mini("Submissions",subs.length,"check","ok")}${mini("To grade",toGrade.length,"clock",toGrade.length?"warn":"ok")}${mini("Average score",fm(mean(gs.map(sp))),"star")}</div></div>`,
+    perf:`<div class="card"><h3>Class performance</h3>${loads.map(l=>{const ss=subs.filter(s=>s.loadId===l.id&&counted(s)),a=mean(ss.map(sp));
+      return `<div class="item"><div style="flex:1;min-width:160px"><b>${esc(l.sn)}</b> <span class="mut sm">${esc(l.sec)}</span>${bar(a||0,a!=null&&a<75?"warn":"ok")}</div><b>${fm(a)}</b></div>`}).join("")||empty("No subject loads yet. The administrator assigns loads.","book")}</div>`,
+    grade:`<div class="card"><h3>Needs grading</h3>${toGrade.slice(0,6).map(s=>`<div class="item"><div><b>${esc(nameOf(s.uid))}</b><div class="mut sm">${esc(actOf(s.actId)?.title||"")}</div></div><a class="btn sm" href="#/grade/${s.actId}">Grade</a></div>`).join("")||empty("Nothing to grade.","check")}</div>`,
+    recent:`<div class="card"><h3>Recent submissions</h3>${tbl(["Student","Activity","Score","When"],recent.map(s=>[esc(nameOf(s.uid)),esc(actOf(s.actId)?.title||"—"),counted(s)?sp(s)+"%":"pending",fdate(ts(s.at))]),"No submissions yet.","nw")}</div>`,
+    ann:show("ann")?`<h2>Announcements</h2>${await annHtml(3)}`:""};
+  const parts=order.filter(show).map(id=>`<div class="wd ${WID.find(w=>w[0]===id)[2]?"full":""}">${P[id]}</div>`).join("");
   return `<div class="banner"><h1>${greet()}, ${esc(S.me.name.split(",").pop().trim().split(" ")[0])}!</h1><p>${fday(Date.now())}</p></div>${adv}
-  <div class="card"><h3>Overview</h3><div class="statgrp">${mini("My classes",loads.length,"book")}${mini("Students",studs.length,"users")}${mini("Activities",acts.length,"list")}${mini("Submissions",subs.length,"check","ok")}${mini("To grade",toGrade.length,"clock",toGrade.length?"warn":"ok")}${mini("Average score",fm(mean(gs.map(sp))),"star")}</div></div>
-  <div class="cols"><div class="card"><h3>Class performance</h3>${loads.map(l=>{const ss=subs.filter(s=>s.loadId===l.id&&counted(s)),a=mean(ss.map(sp));
-    return `<div class="item"><div style="flex:1;min-width:160px"><b>${esc(l.sn)}</b> <span class="mut sm">${esc(l.sec)}</span>${bar(a||0,a!=null&&a<75?"warn":"ok")}</div><b>${fm(a)}</b></div>`}).join("")||empty("No subject loads yet. The administrator assigns loads.","book")}</div>
-  <div class="card"><h3>Needs grading</h3>${toGrade.slice(0,6).map(s=>`<div class="item"><div><b>${esc(nameOf(s.uid))}</b><div class="mut sm">${esc(actOf(s.actId)?.title||"")}</div></div><a class="btn sm" href="#/grade/${s.actId}">Grade</a></div>`).join("")||empty("Nothing to grade.","check")}</div></div>
-  <div class="card" style="margin-top:14px"><h3>Recent submissions</h3>${tbl(["Student","Activity","Score","When"],recent.map(s=>[esc(nameOf(s.uid)),esc(actOf(s.actId)?.title||"—"),counted(s)?sp(s)+"%":"pending",fdate(ts(s.at))]),"No submissions yet.","nw")}</div>
-  <h2>Announcements</h2>${await annHtml(3)}`;
+  <div class="row between noprint" style="margin-bottom:10px"><span class="mut sm">${hide.length?hide.length+" section(s) hidden":""}</span><button class="btn sm ghost" data-a="t_custom">⚙ Customize dashboard</button></div>
+  <div class="wgrid">${parts||`<div class="card wd full">${empty("All sections are hidden. Tap Customize dashboard to show them again.","grid")}</div>`}</div>`;
+};
+/* dashboard sections the teacher can reorder / hide (saved on the teacher's own profile so it follows them to any device) */
+const WID=[["overview","Overview",1],["perf","Class performance",0],["grade","Needs grading",0],["recent","Recent submissions",1],["ann","Announcements",1]];
+const dashPrefs=()=>{const d=S.me.dash||{},ids=WID.map(w=>w[0]),o=(d.order||[]).filter(x=>ids.includes(x));
+  return {order:[...o,...ids.filter(x=>!o.includes(x))],hide:(d.hide||[]).filter(x=>ids.includes(x))}};
+act.t_custom=()=>{
+  let {order}=dashPrefs();const hs=new Set(dashPrefs().hide),d=document.createElement("dialog");d.className="modal";
+  const draw=()=>{d.innerHTML=`<h3>Customize dashboard</h3><p class="mut sm">Move a section up or down. Untick to hide it.</p><div class="wl">${order.map((id,i)=>`<div class="wr"><label><input type="checkbox" data-g="vis" data-id="${id}" ${hs.has(id)?"":"checked"}> ${esc(WID.find(w=>w[0]===id)[1])}</label><span><button class="btn sm ghost" data-g="up" data-id="${id}" ${i?"":"disabled"} aria-label="Move up">↑</button><button class="btn sm ghost" data-g="dn" data-id="${id}" ${i<order.length-1?"":"disabled"} aria-label="Move down">↓</button></span></div>`).join("")}</div>
+    <div class="end"><button class="btn ghost" data-g="reset">Reset</button><button class="btn ghost" data-g="x">Cancel</button><button class="btn" data-g="ok">Save</button></div>`};
+  const fin=()=>{d.close();d.remove()};
+  d.addEventListener("click",async e=>{
+    const el=e.target.closest("[data-g]");if(!el)return;const g=el.dataset.g,id=el.dataset.id,i=order.indexOf(id);
+    if(g==="vis"){el.checked?hs.delete(id):hs.add(id);return}
+    if(g==="up"&&i>0)[order[i-1],order[i]]=[order[i],order[i-1]];
+    if(g==="dn"&&i>-1&&i<order.length-1)[order[i+1],order[i]]=[order[i],order[i+1]];
+    if(g==="reset"){order=WID.map(w=>w[0]);hs.clear()}
+    if(g==="x")return fin();
+    if(g==="ok"){const dash={order,hide:[...hs]};try{await updateDoc(doc(db,"users",S.me.uid),{dash});S.me.dash=dash;fin();toast("Dashboard saved.");refresh()}catch(err){toast(errMsg(err),"bad")}return}
+    draw();
+  });
+  d.addEventListener("cancel",e=>{e.preventDefault();fin()});
+  draw();document.body.append(d);d.showModal();
 };
 
 /* ---------- classes (each class card opens the class) ---------- */
@@ -157,12 +188,12 @@ pages.load=async([id,tab="activities",extra])=>{
   /* classwork: topic first, each topic holds Announcements, Materials and Tests */
   const state=a=>a.draft?["Draft","mut"]:a.opens&&Date.now()<a.opens?["Scheduled","info"]:a.closes&&Date.now()>a.closes?["Closed","bad"]:["Open","ok"];
   const testItem=a=>{const ss=c.subs.filter(s=>s.actId===a.id),tg=ss.filter(s=>s.graded===false).length,[sl,sk]=state(a);
-    return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl,sk)}${a.release?" "+badge("Answers released","ok"):""}
+    return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl,sk)}${twBadge(a)}${a.release?" "+badge("Answers released","ok"):""}
     <div class="mut sm">${a.questions.length} items · ${a.totalPts} pts · ${a.attempts} attempt(s)${a.timeLimit?" · "+a.timeLimit+" min":""} · ${a.closes?"Due "+fdate(a.closes):"No deadline"}${a.opens&&Date.now()<a.opens?" · Opens "+fdate(a.opens):""}</div>
     ${a.draft?"":`<div class="sm"><b>${new Set(ss.map(s=>s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg?` · <a href="#/grade/${a.id}">${badge(tg+" to grade","warn")}</a>`:""}</div>`}</div>
     <div class="row">${a.draft?"":`<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${a.hasEssay?`<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>`:""}${btn("relact",a.release?"Hide answers":"Release answers",a.id,"ghost")}${btn("dupact","Duplicate",a.id,"ghost")}${btn("delact","Delete",a.id,"danger")}</div></div>`};
-  const annItem=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${btn("t_delann","Delete",x.id,"danger")}</div>`;
-  const matItem=m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${btn("t_delmat","Delete",m.id,"danger")}</div></div>`;
+  const annItem=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div><div class="row">${btn("t_tag","Term/Week",x.id,"ghost",`data-col="classAnn" data-t="${x.term||""}" data-w="${x.week||""}"`)}${btn("t_delann","Delete",x.id,"danger")}</div></div>`;
+  const matItem=m=>`<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${btn("t_tag","Term/Week",m.id,"ghost",`data-col="materials" data-t="${m.term||""}" data-w="${m.week||""}"`)}${btn("t_delmat","Delete",m.id,"danger")}</div></div>`;
   const fold=(t,n,add,items)=>`<details class="fold" open><summary><span class="sp">${t}</span><span class="badge mut">${n}</span>${add}</summary>${items.join("")||`<p class="mut sm">Nothing yet.</p>`}</details>`;
   const docNames=new Set(c.topics.map(t=>t.name));
   const legacy=[...new Set([...c.acts.map(a=>a.topic),...c.mats.map(m=>m.topic),...c.anns.map(x=>x.topic)].filter(n=>n&&!docNames.has(n)))].sort();
@@ -197,16 +228,20 @@ act.t_deltopic=async el=>{
   await b.commit();toast("Topic deleted.");refresh();
 };
 act.t_addann=async el=>{
-  const r=await fdlg("New announcement",[{k:"t",l:"Title",req:1},{k:"x",l:"Message",ta:1,req:1}],"Post");if(!r)return;
+  const r=await fdlg("New announcement",[{k:"t",l:"Title",req:1},{k:"x",l:"Message",ta:1,req:1},...TW()],"Post");if(!r)return;
   const ld=await loadOf(el.dataset.id);
-  await addDoc(collection(db,"classAnn"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,title:r.t,text:r.x,by:S.me.uid,at:serverTimestamp()});
+  await addDoc(collection(db,"classAnn"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,term:+r.term,week:+r.week,title:r.t,text:r.x,by:S.me.uid,at:serverTimestamp()});
   log("class announcement "+r.t);toast("Announcement posted.");refresh();
+};
+act.t_tag=async el=>{
+  const r=await fdlg("Move to term / week",TW(+el.dataset.t||0,+el.dataset.w||0),"Save");if(!r)return;
+  await updateDoc(doc(db,el.dataset.col,el.dataset.id),{term:+r.term,week:+r.week});toast("Moved.");refresh();
 };
 act.t_delann=async el=>{if(await ask("Delete this announcement?","Delete",true)){await deleteDoc(doc(db,"classAnn",el.dataset.id));toast("Deleted.");refresh()}};
 act.t_addmat=async el=>{
-  const r=await fdlg("New material",[{k:"t",l:"Title",ph:"e.g. Module 3",req:1},{k:"u",l:"Link (Google Drive, etc.)",type:"url",ph:"https://",req:1},{k:"n",l:"Note"}],"Post",o=>/^https?:\/\//i.test(o.u)?"":"The link must start with http:// or https://");
+  const r=await fdlg("New material",[{k:"t",l:"Title",ph:"e.g. Module 3",req:1},{k:"u",l:"Link (Google Drive, etc.)",type:"url",ph:"https://",req:1},{k:"n",l:"Note"},...TW()],"Post",o=>/^https?:\/\//i.test(o.u)?"":"The link must start with http:// or https://");
   if(!r)return;const ld=await loadOf(el.dataset.id);
-  await addDoc(collection(db,"materials"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,title:r.t,url:r.u,note:r.n,by:S.me.uid,at:serverTimestamp()});
+  await addDoc(collection(db,"materials"),{loadId:el.dataset.id,sectionId:ld.sectionId,topic:el.dataset.topic,term:+r.term,week:+r.week,title:r.t,url:r.u,note:r.n,by:S.me.uid,at:serverTimestamp()});
   log("posted material "+r.t);toast("Material posted.");refresh();
 };
 act.t_delmat=async el=>{if(await ask("Delete this material?","Delete",true)){await deleteDoc(doc(db,"materials",el.dataset.id));toast("Deleted.");refresh()}};
@@ -271,7 +306,7 @@ function readQ(){
 }
 function readMeta(){
   const m=E.meta;m.title=v("m_title");m.instr=$("#m_instr").value.trim();m.attempts=+v("m_att")||1;m.opens=fromLocalInput(v("m_open"));m.closes=fromLocalInput(v("m_close"));
-  m.timeLimit=Math.max(0,parseInt(v("m_time"))||0);m.shuffle=$("#m_shuf").checked;m.release=$("#m_rel").checked;m.topic=v("m_topic");m.links=parseLinks($("#m_links").value);
+  m.timeLimit=Math.max(0,parseInt(v("m_time"))||0);m.shuffle=$("#m_shuf").checked;m.release=$("#m_rel").checked;m.topic=v("m_topic");m.term=+v("m_term")||1;m.week=+v("m_week")||1;m.links=parseLinks($("#m_links").value);
 }
 const parseLinks=t=>t.split("\n").map(l=>l.trim()).filter(Boolean).map(l=>{const m=l.match(/^(.*?)[\s|]*(https?:\/\/\S+)$/);return m?{t:m[1].trim().slice(0,80),u:m[2]}:null}).filter(Boolean).slice(0,6);
 const persist=()=>{if(E.actId)return;try{readMeta();localStorage.setItem(dkey(E.loadId),JSON.stringify({meta:E.meta,qs:E.qs}))}catch{}};
@@ -292,12 +327,12 @@ pages.editor=async([loadId,actId])=>{
   const ls=await getDoc(doc(db,"loads",loadId));
   if(!ls.exists()||ls.data().teacherUid!==S.me.uid)return `<div class="card">${empty("Class not found.")}</div>`;
   const ld=ls.data();
-  E={loadId,actId:actId||"",sectionId:ld.sectionId,qt:"mc",edit:-1,keep:null,subs:0,meta:{title:"",instr:"",attempts:1,opens:0,closes:0,timeLimit:0,shuffle:true,release:false,topic:"",links:[],draft:false},qs:[],qimg:"",tab:"type"};
+  E={loadId,actId:actId||"",sectionId:ld.sectionId,qt:"mc",edit:-1,keep:null,subs:0,meta:{title:"",instr:"",attempts:1,opens:0,closes:0,timeLimit:0,shuffle:true,release:false,topic:"",term:curTerm(),week:1,links:[],draft:false},qs:[],qimg:"",tab:"type"};
   if(actId){
     const [as,ks,ss]=await Promise.all([getDoc(doc(db,"activities",actId)),getDoc(doc(db,"keys",actId)),list("submissions",where("actId","==",actId))]);
     if(!as.exists()||!ks.exists()||as.data().by!==S.me.uid||as.data().v!==2)return `<div class="card">${empty("This activity cannot be edited (it may be from the old version). Create a new one.")}</div>`;
     const a=as.data(),key=ks.data().ans;E.subs=ss.length;
-    E.meta={title:a.title,instr:a.instructions||"",attempts:a.attempts,opens:a.opens||0,closes:a.closes||0,timeLimit:a.timeLimit||0,shuffle:!!a.shuffle,release:!!a.release,topic:a.topic||"",links:a.links||[],draft:!!a.draft};
+    E.meta={title:a.title,instr:a.instructions||"",attempts:a.attempts,opens:a.opens||0,closes:a.closes||0,timeLimit:a.timeLimit||0,shuffle:!!a.shuffle,release:!!a.release,topic:a.topic||"",term:a.term||curTerm(),week:a.week||1,links:a.links||[],draft:!!a.draft};
     E.qs=a.questions.map((q,i)=>{const k=key[i],o={t:q.t,p:q.p,pts:q.pts||1};if(q.img)o.img=q.img;
       if(q.t==="mc"){o.o=q.o;o.a=k}else if(q.t==="tf")o.a=k;else if(q.t==="mt")o.pairs=q.l.map((l,j)=>[l,k[j]]);else o.a=k||"";return o});
   }else{try{const d=JSON.parse(localStorage.getItem(dkey(loadId)));if(d){E.meta={...E.meta,...d.meta};E.qs=d.qs||[]}}catch{}}
@@ -325,6 +360,8 @@ pages.editor=async([loadId,actId])=>{
   ${mv("m_title","Title",`<input id="m_title" value="${esc(m.title)}" placeholder="e.g. Quiz 1 – Trigonometric Ratios">`)}
   <div class="g2">${mv("m_topic","Topic",`<select id="m_topic"><option value="" disabled ${m.topic?"":"selected"}>Select topic</option>${topics.map(t=>`<option ${t===m.topic?"selected":""}>${esc(t)}</option>`).join("")}</select>${topics.length?"":`<p class="hint"><a href="#/load/${loadId}/activities">Create a topic</a> first.</p>`}`)}
   ${mv("m_att","Attempts",`<select id="m_att">${[1,2,3].map(n=>`<option ${m.attempts==n?"selected":""}>${n}</option>`).join("")}</select>`)}</div>
+  <div class="g2">${mv("m_term","Term",`<select id="m_term">${[1,2,3].map(n=>`<option value="${n}" ${m.term==n?"selected":""}>Term ${n}</option>`).join("")}</select>`)}
+  ${mv("m_week","Week",`<select id="m_week">${Array.from({length:20},(_,i)=>`<option value="${i+1}" ${m.week==i+1?"selected":""}>Week ${i+1}</option>`).join("")}</select>`)}</div>
   <label class="f" for="m_instr">Instructions</label><textarea id="m_instr" rows="2">${esc(m.instr)}</textarea>
   <label class="f" for="m_links">Attached files <span class="mut">(Title link, one per line)</span></label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links||[]).map(l=>(l.t?l.t+" ":"")+l.u).join("\n"))}</textarea></div>
   <div class="card"><h3>Questions</h3>
@@ -442,7 +479,7 @@ act.esave=async el=>{
       else ans[i]=q.a||"";
       questions.push(b)}
     const hasEssay=E.qs.some(q=>q.t==="es"),autoTotal=E.qs.filter(q=>q.t!=="es").reduce((n,q)=>n+qMax(q),0),manualMax=E.qs.filter(q=>q.t==="es").reduce((n,q)=>n+qMax(q),0);
-    const data={v:2,loadId:E.loadId,sectionId:E.sectionId,title:m.title,instructions:m.instr,attempts:hasEssay?1:m.attempts,opens:m.opens,closes:m.closes,timeLimit:m.timeLimit,shuffle:m.shuffle,release:m.release,topic:m.topic,links:m.links,draft,
+    const data={v:2,loadId:E.loadId,sectionId:E.sectionId,title:m.title,instructions:m.instr,attempts:hasEssay?1:m.attempts,opens:m.opens,closes:m.closes,timeLimit:m.timeLimit,shuffle:m.shuffle,release:m.release,topic:m.topic,term:m.term,week:m.week,links:m.links,draft,
       questions,salt,totalPts:autoTotal+manualMax,autoTotal,manualMax,hasEssay,updatedAt:serverTimestamp()};
     if(JSON.stringify(data).length>900000)throw new Error("This activity has too many or too large pictures. Remove a few pictures or use smaller ones.");
     const ref=E.actId?doc(db,"activities",E.actId):doc(collection(db,"activities")),b=writeBatch(db);

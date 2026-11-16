@@ -40,11 +40,14 @@ const loadOf=(d,a)=>d.loads.find(l=>l.id===a.loadId);
 const dueTxt=a=>a.closes?"Due "+fdate(a.closes):"No deadline";
 
 function progressOf(d,loadId){const as=d.acts.filter(a=>a.loadId===loadId),done=as.filter(a=>d.sm[a.id]).length;return {n:as.length,done,p:pct(done,as.length)}}
-const subjCard=(d,l)=>{const s=d.subjects.find(x=>x.id===l.subjectId)||{},pr=progressOf(d,l.id);
-  return `<div class="card subj"><span class="chip">${esc(s.type||"core")}</span><h3>${esc(s.name||"Subject")}</h3>
-  <p class="mut sm">${esc(s.description||"")}</p>${l.teacherName?`<div class="mut sm">Teacher: ${esc(l.teacherName)}</div>`:""}
-  <div class="row between sm" style="margin-top:10px"><span>${pr.done}/${pr.n} activities done</span><b>${pr.p}%</b></div>${bar(pr.p,pr.p==100?"ok":"")}
-  <p><a class="btn" href="#/subject/${l.id}">Open</a></p></div>`};
+const curTerm=()=>{const n=+((S.set.term||"").match(/\d/)||[1])[0];return n>=1&&n<=3?n:1};
+const COLORS=["#1d4ed8","#0f766e","#6d28d9","#b45309","#be185d","#0369a1"];
+const colorOf=id=>COLORS[[...String(id)].reduce((n,c)=>n+c.charCodeAt(0),0)%COLORS.length];
+const subjCard=(d,l)=>{const s=d.subjects.find(x=>x.id===l.subjectId)||{},pr=progressOf(d,l.id),as=d.acts.filter(a=>a.loadId===l.id);
+  const sts=as.map(a=>status(a,d.sm[a.id])),todo=sts.filter(x=>x==="open"||x==="progress").length,miss=sts.filter(x=>x==="missed").length;
+  return `<a class="sjc" href="#/subject/${l.id}" style="--c:${colorOf(s.name||l.id)}"><div class="sjh"><span class="chip">${esc(s.type||"core")}</span><h3>${esc(s.name||"Subject")}</h3>${l.teacherName?`<div class="sm">${esc(l.teacherName)}</div>`:""}</div>
+  <div class="sjb"><div class="row between sm"><span>${pr.done}/${pr.n} done</span><b>${pr.p}%</b></div>${bar(pr.p,pr.p==100?"ok":"")}
+  <div class="row" style="margin-top:8px">${todo?badge(todo+" to do","info"):""}${miss?badge(miss+" missed","bad"):""}${!todo&&!miss?badge(pr.n?"All caught up":"No activities yet","mut"):""}</div></div></a>`};
 
 /* ---------- dashboard ---------- */
 pages.home=async()=>{
@@ -73,27 +76,67 @@ act.minor=async el=>{const m=el.dataset.id==="1";await updateDoc(doc(db,"users",
 
 /* ---------- subjects ---------- */
 pages.subjects=async()=>{const d=await data();
-  return head("My subjects",`${d.sec?.name||""}`)+`<div class="cards">${d.loads.map(l=>subjCard(d,l)).join("")||`<div class="card">${empty("No subjects assigned to your section yet.","book")}</div>`}</div>`};
+  return head("My subjects",`${d.sec?.name||""}`)+`<div class="sjgrid">${d.loads.map(l=>subjCard(d,l)).join("")||`<div class="card">${empty("No subjects assigned to your section yet.","book")}</div>`}</div>`};
+
+/* one subject = Term filter > Week strip > Timeline | Classwork | Learning Materials (all filtering happens on the phone, no reloading) */
+const V={};
+const NOTEXT={mat:"book",ann:"bell",act:"list"};
+const itemsOf=()=>[...V.mats.map(x=>({k:"mat",x})),...V.anns.map(x=>({k:"ann",x})),...V.as.map(x=>({k:"act",x}))].map(i=>({...i,term:i.x.term||0,week:i.x.week||0,at:ts(i.x.at)}));
+const inView=i=>i.term===V.term&&(V.week===0||i.week===V.week);
+const matRow=m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a></div>`;
+const annRow=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div></div>`;
+const actRow=a=>{const s=V.d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
+  return `<div class="item"><div style="min-width:0"><b>${esc(a.title)}</b> ${badge(lb,k)}
+  <div class="mut sm">${a.opens&&Date.now()<a.opens?"Opens "+fdate(a.opens)+" · ":""}${dueTxt(a)} · ${a.questions.length} items · ${a.totalPts} pts · ${a.timeLimit?a.timeLimit+" min · ":""}${Math.max(0,a.attempts-used)} attempt(s) left</div>
+  ${s?`<div class="sm"><b>Score:</b> ${scoreTxt(s)}</div>`:""}${linksHtml(a)}</div>
+  <div class="row">${st==="open"||st==="progress"||st==="retake"?`<a class="btn sm" href="#/take/${a.id}">${st==="progress"?"Resume":st==="retake"?"Retake":"Start"}</a>`:""}${s?`<a class="btn sm ghost" href="#/result/${a.id}">Result</a>`:""}</div></div>`};
+const rowOf=i=>i.k==="act"?actRow(i.x):i.k==="mat"?matRow(i.x):annRow(i.x);
+const groupBy=(arr,f)=>{const g={};arr.forEach(i=>(g[f(i)]??=[]).push(i));return g};
+const byTopic=(arr,cls)=>{const g=groupBy(arr,i=>i.x.topic||""),ks=Object.keys(g).sort((a,b)=>!a?1:!b?-1:a.localeCompare(b));
+  return ks.map(t=>`<div class="card"><h3>${t?esc(t):"Other"}</h3>${g[t].map(rowOf).join("")}</div>`).join("")};
+
+function sjView(){
+  const all=itemsOf(),hasLegacy=all.some(i=>!i.term),terms=[1,2,3,...(hasLegacy?[0]:[])];
+  const inTerm=all.filter(i=>i.term===V.term),maxW=Math.max(10,...inTerm.map(i=>i.week));
+  const todoAct=i=>i.k==="act"&&["open","progress"].includes(status(i.x,V.d.sm[i.x.id]));
+  const weeks=V.term?[0,...Array.from({length:maxW},(_,i)=>i+1)]:[];
+  const wk=weeks.map(w=>{const its=inTerm.filter(i=>w===0||i.week===w),hot=its.some(todoAct);
+    return `<button class="wk ${V.week===w?"on":""}" data-a="sj_week" data-w="${w}">${w?"Wk "+w:"All"}${hot?`<i class="dot hot"></i>`:its.length&&w?`<i class="dot"></i>`:""}</button>`}).join("");
+  const vis=all.filter(inView).sort((a,b)=>b.at-a.at),acts=vis.filter(i=>i.k==="act").sort((a,b)=>(a.x.closes||9e15)-(b.x.closes||9e15)),mats=vis.filter(i=>i.k==="mat");
+  const cnt={timeline:vis.length,work:acts.length,mats:mats.length};
+  const tab=(k,l)=>`<button class="seg ${V.tab===k?"on":""}" data-a="sj_tab" data-k="${k}">${l}<span class="n">${cnt[k]}</span></button>`;
+  let body="";
+  if(V.tab==="timeline"){
+    const due=V.as.filter(a=>a.closes&&["open","progress","retake"].includes(status(a,V.d.sm[a.id]))).sort((a,b)=>a.closes-b.closes).slice(0,3);
+    const g=groupBy(vis,i=>i.week),ks=Object.keys(g).map(Number).sort((a,b)=>b-a);
+    body=(due.length?`<div class="card due"><h3>Due soon</h3>${due.map(a=>`<div class="item"><div><b>${esc(a.title)}</b><div class="mut sm">${dueTxt(a)}</div></div><a class="btn sm" href="#/take/${a.id}">Open</a></div>`).join("")}</div>`:"")+
+    (ks.map(w=>`<div class="tlg"><div class="tlh">${w?"Week "+w:"No week set"}</div>${g[w].map(i=>`<div class="tl"><span class="tli">${ic(NOTEXT[i.k])}</span><div class="tlb">${rowOf(i)}</div></div>`).join("")}</div>`).join("")||`<div class="card">${empty("Nothing posted for this selection yet.","clock")}</div>`);
+  }else if(V.tab==="work"){
+    const F={all:"All",todo:"To do",done:"Done",missed:"Missed"},stOf=i=>status(i.x,V.d.sm[i.x.id]);
+    const ok=i=>V.f==="all"||(V.f==="todo"&&["open","progress","retake"].includes(stOf(i)))||(V.f==="done"&&["done","retake"].includes(stOf(i)))||(V.f==="missed"&&stOf(i)==="missed");
+    const list=acts.filter(ok);
+    body=`<div class="fchips">${Object.entries(F).map(([k,l])=>`<button class="wk ${V.f===k?"on":""}" data-a="sj_f" data-k="${k}">${l}</button>`).join("")}</div>`+(byTopic(list)||`<div class="card">${empty("No classwork here.","list")}</div>`);
+  }else body=byTopic(mats)||`<div class="card">${empty("No learning materials here.","book")}</div>`;
+  return `<div class="sjnav"><div class="terms">${terms.map(t=>`<button class="seg ${V.term===t?"on":""}" data-a="sj_term" data-t="${t}">${t?"Term "+t:"Unsorted"}</button>`).join("")}</div>
+  ${V.term?`<div class="wks" role="tablist" aria-label="Week">${wk}</div>`:""}
+  <div class="tabs">${tab("timeline","Timeline")}${tab("work","Classwork")}${tab("mats","Learning Materials")}</div></div>${body}`;
+}
+const sjDraw=()=>{const w=document.getElementById("sjw");if(w)w.innerHTML=sjView()};
+act.sj_term=el=>{V.term=+el.dataset.t;V.week=0;sjDraw()};
+act.sj_week=el=>{V.week=+el.dataset.w;sjDraw()};
+act.sj_tab=el=>{V.tab=el.dataset.k;sjDraw()};
+act.sj_f=el=>{V.f=el.dataset.k;sjDraw()};
 
 pages.subject=async([id])=>{
   const d=await data(),l=d.loads.find(x=>x.id===id);
   if(!l)return `<div class="card">${empty("Subject not found.")}<p class="right"><a class="btn" href="#/subjects">Back</a></p></div>`;
   /* Ask Firestore only for this student's section (what the rules allow), then pick this subject here. */
   const sid=S.me.sectionId;
-  const matsAll=(await list("materials",where("sectionId","==",sid)).catch(()=>[])).filter(m=>m.loadId===id).sort((a,b)=>ts(b.at)-ts(a.at)),mats=matsAll.filter(m=>!m.topic);
-  const anns=(await list("classAnn",where("sectionId","==",sid)).catch(()=>[])).filter(x=>x.loadId===id).sort((a,b)=>ts(b.at)-ts(a.at));
-  const tp=t=>t?anns.filter(x=>x.topic===t).map(x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div></div>`).join("")+matsAll.filter(m=>m.topic===t).map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}</div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a></div>`).join(""):"";
-  const as=d.acts.filter(a=>a.loadId===id);
-  return head(subjName(d,l),l.teacherName?"Teacher: "+l.teacherName:"",`<a class="btn ghost" href="#/subjects">← Subjects</a>`)+
-  `<div class="card"><h3>Learning materials</h3>${mats.map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open / Download</a></div>`).join("")||empty("No materials posted yet.")}</div>
-  ${(()=>{if(!as.length&&!anns.length&&!matsAll.length)return `<div class="card"><h3>Classwork</h3>${empty("No activities posted yet.","list")}</div>`;
-    const groups={};as.forEach(a=>(groups[a.topic||""]??=[]).push(a));[...matsAll,...anns].forEach(x=>{if(x.topic)groups[x.topic]??=[]});
-    const keys=Object.keys(groups).sort((x,y)=>!x?1:!y?-1:x.localeCompare(y));
-    return keys.map(t=>`<div class="card"><h3>${t?esc(t):"Classwork"}</h3>${tp(t)}${groups[t].map(a=>{const s=d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
-    return `<div class="item"><div style="min-width:0"><b>${esc(a.title)}</b> ${badge(lb,k)}
-    <div class="mut sm">${a.opens&&Date.now()<a.opens?"Opens "+fdate(a.opens)+" · ":""}${dueTxt(a)} · ${a.questions.length} items · ${a.totalPts} pts · ${a.timeLimit?a.timeLimit+" min · ":""}${Math.max(0,a.attempts-used)} attempt(s) left</div>
-    ${s?`<div class="sm"><b>Score:</b> ${scoreTxt(s)}</div>`:""}${linksHtml(a)}</div>
-    <div class="row">${st==="open"||st==="progress"||st==="retake"?`<a class="btn sm" href="#/take/${a.id}">${st==="progress"?"Resume":st==="retake"?"Retake":"Start"}</a>`:""}${s?`<a class="btn sm ghost" href="#/result/${a.id}">Result</a>`:""}</div></div>`}).join("")}</div>`).join("")})()}`;
+  const [mats,anns]=await Promise.all([list("materials",where("sectionId","==",sid)).catch(()=>[]),list("classAnn",where("sectionId","==",sid)).catch(()=>[])]);
+  Object.assign(V,{d,l,mats:mats.filter(m=>m.loadId===id),anns:anns.filter(x=>x.loadId===id),as:d.acts.filter(a=>a.loadId===id),week:0,tab:"timeline",f:"all",term:curTerm()});
+  const all=itemsOf();if(!all.some(i=>i.term===V.term)&&all.length)V.term=[1,2,3,0].find(t=>all.some(i=>i.term===t))??V.term;
+  const s=d.subjects.find(x=>x.id===l.subjectId)||{};
+  return `<div class="sjtop" style="--c:${colorOf(s.name||l.id)}"><a class="back" href="#/subjects">← Subjects</a><h1>${esc(subjName(d,l))}</h1>${l.teacherName?`<div>Teacher: ${esc(l.teacherName)}</div>`:""}</div><div id="sjw">${sjView()}</div>`;
 };
 
 /* ---------- take an activity ---------- */

@@ -440,3 +440,53 @@ img.avatar{display:block}
 .fi input:focus{background:#fff;border-color:var(--pri)}
 .lg-row{justify-content:space-between;flex-wrap:nowrap}
 .lg-rm{font-weight:600;color:#4b5568}
+/* ===== floating profile card (view / edit); bottom sheet on phones ===== */
+.pback{position:fixed;inset:0;z-index:39;background:transparent}
+.pback[hidden]{display:none}
+.pprof{width:min(340px,92vw);max-height:80vh;overflow-y:auto}
+.pp-i{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.pp-bio{margin:12px 0 4px;white-space:pre-wrap;overflow-wrap:anywhere}
+.pp-dl{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin:12px 0;font-size:13px}
+.pp-dl dt{color:var(--mut)}.pp-dl dd{margin:0;overflow-wrap:anywhere;font-weight:600}
+.pp-act{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.pprof textarea{width:100%;resize:vertical}
+@media(max-width:640px){
+  .pback{background:rgba(15,23,42,.45)}
+  .pprof{position:fixed;left:0;right:0;top:auto;bottom:0;width:100%;max-height:85vh;border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));animation:ppup .2s ease-out}
+  @keyframes ppup{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
+}
+
+/* ===== student subjects (classroom style, term > week > section) ===== */
+.sjgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:14px}
+.sjc{display:block;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.sjc:hover{transform:translateY(-2px)}
+.sjh{background:var(--c);color:#fff;padding:14px 16px;min-height:92px}
+.sjh h3{color:#fff;margin:6px 0 2px;font-size:1.1rem}.sjh .chip{background:rgba(255,255,255,.2);color:#fff}
+.sjb{padding:12px 16px 16px}
+.sjtop{background:var(--c);color:#fff;border-radius:var(--r);padding:16px 18px;margin-bottom:12px}
+.sjtop h1{color:#fff;margin:4px 0}.sjtop .back{color:#fff;font-size:13px;opacity:.9}
+.sjnav{position:sticky;top:58px;z-index:8;background:var(--bg);padding:6px 0 8px;margin-bottom:10px;border-bottom:1px solid var(--line)}
+.terms,.tabs,.fchips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.terms .seg,.tabs .seg{flex:1 0 auto}
+.tabs{margin-top:8px}
+.tabs .seg .n{margin-left:6px;font-size:11px;background:var(--line);color:var(--mut);border-radius:99px;padding:0 7px}
+.wks{display:flex;gap:6px;overflow-x:auto;padding:8px 0 2px;scrollbar-width:none}
+.wk{flex:none;position:relative;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:99px;padding:6px 14px;font:inherit;font-size:13px;font-weight:600;cursor:pointer;min-height:34px}
+.wk.on{background:var(--pri);border-color:var(--pri);color:#fff}
+.wk .dot{position:absolute;top:3px;right:5px;width:7px;height:7px;border-radius:50%;background:#94a3b8}
+.wk .dot.hot{background:#dc2626}
+.fchips{margin-bottom:10px}
+.tlh{font-weight:700;color:var(--mut);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin:14px 0 6px}
+.tl{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
+.tli{flex:none;width:34px;height:34px;border-radius:50%;background:var(--soft);color:var(--pri);display:grid;place-items:center;margin-top:6px}
+.tlb{flex:1;min-width:0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 12px}
+.card.due{border-left:4px solid #dc2626}
+.sjc,.wk{-webkit-tap-highlight-color:transparent}
+
+/* ===== customizable teacher dashboard ===== */
+.wgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.wd{min-width:0}.wd.full{grid-column:1/-1}.wd>.card{margin:0;height:100%}
+@media(max-width:900px){.wgrid{grid-template-columns:1fr}}
+.wl{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.wr{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);border-radius:10px}
+.wr label{display:flex;gap:8px;align-items:center;flex:1}.wr span{display:flex;gap:4px}
