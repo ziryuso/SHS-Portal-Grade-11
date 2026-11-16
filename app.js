@@ -88,6 +88,6 @@ const pm=(open)=>{const m=$("#pmenu");if(!m)return;m.hidden=!open;$(".chipu")?.s
 const pp=(open)=>{const p=$("#pprof");if(!p)return;if(open)p.innerHTML=profInner();p.hidden=!open;$(".chipu")?.setAttribute("aria-expanded",open?"true":"false")};
 const closeAll=()=>{pp(false);pm(false)};
 act.pmenu=()=>{const p=$("#pprof");if(p&&!p.hidden){pp(false);return}pm($("#pmenu")?.hidden)};
-act.pgo=()=>{pm(false);if(S.me.role==="admin")pp(true);else location.hash="#/profile"};
+act.pgo=()=>{pm(false);if(S.me.role!=="student")pp(true);else location.hash="#/profile"};
 document.addEventListener("click",e=>{if(!e.target.closest(".pm"))closeAll()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeAll()});
