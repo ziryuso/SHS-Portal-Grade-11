@@ -78,14 +78,16 @@ pages.subjects=async()=>{const d=await data();
 pages.subject=async([id])=>{
   const d=await data(),l=d.loads.find(x=>x.id===id);
   if(!l)return `<div class="card">${empty("Subject not found.")}<p class="right"><a class="btn" href="#/subjects">Back</a></p></div>`;
-  const mats=(await list("materials",where("loadId","==",id))).sort((a,b)=>ts(b.at)-ts(a.at));
+  const matsAll=(await list("materials",where("loadId","==",id))).sort((a,b)=>ts(b.at)-ts(a.at)),mats=matsAll.filter(m=>!m.topic);
+  const anns=(await list("classAnn",where("loadId","==",id)).catch(()=>[])).sort((a,b)=>ts(b.at)-ts(a.at));
+  const tp=t=>t?anns.filter(x=>x.topic===t).map(x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b><p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div></div>`).join("")+matsAll.filter(m=>m.topic===t).map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}</div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a></div>`).join(""):"";
   const as=d.acts.filter(a=>a.loadId===id);
   return head(subjName(d,l),l.teacherName?"Teacher: "+l.teacherName:"",`<a class="btn ghost" href="#/subjects">← Subjects</a>`)+
   `<div class="card"><h3>Learning materials</h3>${mats.map(m=>`<div class="item"><div><b>${esc(m.title)}</b>${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><a class="btn sm" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open / Download</a></div>`).join("")||empty("No materials posted yet.")}</div>
-  ${(()=>{if(!as.length)return `<div class="card"><h3>Classwork</h3>${empty("No activities posted yet.","list")}</div>`;
-    const groups={};as.forEach(a=>(groups[a.topic||""]??=[]).push(a));
+  ${(()=>{if(!as.length&&!anns.length&&!matsAll.length)return `<div class="card"><h3>Classwork</h3>${empty("No activities posted yet.","list")}</div>`;
+    const groups={};as.forEach(a=>(groups[a.topic||""]??=[]).push(a));[...matsAll,...anns].forEach(x=>{if(x.topic)groups[x.topic]??=[]});
     const keys=Object.keys(groups).sort((x,y)=>!x?1:!y?-1:x.localeCompare(y));
-    return keys.map(t=>`<div class="card"><h3>${t?esc(t):"Classwork"}</h3>${groups[t].map(a=>{const s=d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
+    return keys.map(t=>`<div class="card"><h3>${t?esc(t):"Classwork"}</h3>${tp(t)}${groups[t].map(a=>{const s=d.sm[a.id],st=status(a,s),[lb,k]=SB[st],used=s?.attempts||0;
     return `<div class="item"><div style="min-width:0"><b>${esc(a.title)}</b> ${badge(lb,k)}
     <div class="mut sm">${a.opens&&Date.now()<a.opens?"Opens "+fdate(a.opens)+" · ":""}${dueTxt(a)} · ${a.questions.length} items · ${a.totalPts} pts · ${a.timeLimit?a.timeLimit+" min · ":""}${Math.max(0,a.attempts-used)} attempt(s) left</div>
     ${s?`<div class="sm"><b>Score:</b> ${scoreTxt(s)}</div>`:""}${linksHtml(a)}</div>
