@@ -55,7 +55,16 @@ act.caldel=async el=>{
 };
 
 /* ---------- dashboard ---------- */
+/* the teacher's name is copied into every load; keep those copies in step with the teacher's account */
+async function syncNames(tch,loads){
+  tch=tch||await list("users",where("role","==","teacher"));loads=loads||await list("loads");
+  const nm=Object.fromEntries(tch.map(t=>[t.id,t.name])),stale=loads.filter(l=>nm[l.teacherUid]&&nm[l.teacherUid]!==l.teacherName);
+  await Promise.all(stale.map(l=>updateDoc(doc(db,"loads",l.id),{teacherName:nm[l.teacherUid]}).then(()=>{l.teacherName=nm[l.teacherUid]})));
+  return stale.length;
+}
+act.syncnames=async()=>{const n=await syncNames();toast(n?`Updated the teacher name on ${n} subject load(s).`:"Teacher names are already up to date.");refresh()};
 pages.home=async()=>{
+  syncNames().catch(()=>{});
   const [stu,tea,pend,secs,acts,subs,reqs,logs,pending,calItems]=await Promise.all([
     count("users",where("role","==","student"),where("status","==","approved")),count("users",where("role","==","teacher"),where("status","==","approved")),
     count("users",where("status","==","pending")),count("sections"),count("activities"),count("submissions"),
@@ -117,6 +126,7 @@ const inTerm=(l,sy,tm)=>(l.schoolYear||S.set.schoolYear||"")===sy&&(l.term||S.se
 pages.loads=async([syP,tmP])=>{
   const sy=syP||S.set.schoolYear||"",tm=tmP||S.set.term||TERMS[0];
   const [secs,tch,subs,loads]=await Promise.all([list("sections"),list("users",where("role","==","teacher")),list("subjects"),list("loads")]);
+  await syncNames(tch,loads).catch(()=>0);
   const T=tch.filter(t=>t.status==="approved").sort(byName);secs.sort(byName);subs.sort(byName);
   const advOf={};secs.forEach(s=>{if(s.adviserUid)advOf[s.adviserUid]=s.id});
   const o=(a,f)=>a.map(x=>`<option value="${x.id}">${esc(f(x))}</option>`).join("");
@@ -131,7 +141,7 @@ pages.loads=async([syP,tmP])=>{
   return head("Sections & subject loads")+`<div class="card"><h3>School year &amp; term</h3><div class="g2">
   <div><label class="f" for="vsy">School year</label><input id="vsy" list="syl" value="${esc(sy)}" placeholder="2026–2027" data-c="loadview"><datalist id="syl">${years.map(y=>`<option value="${esc(y)}">`).join("")}</datalist></div>
   <div><label class="f" for="vtm">Term</label><select id="vtm" data-c="loadview">${terms.map(t=>`<option ${t===tm?"selected":""}>${esc(t)}</option>`).join("")}</select></div></div>
-  <div class="row" style="margin-top:10px">${isCur?badge("Current term","ok"):btn("setcur","Set as current")}<span class="hint">Subject loads below belong to ${esc(sy||"—")} · ${esc(tm)}.</span></div></div>
+  <div class="row" style="margin-top:10px">${isCur?badge("Current term","ok"):btn("setcur","Set as current")}${btn("syncnames","Refresh teacher names","","ghost")}<span class="hint">Subject loads below belong to ${esc(sy||"—")} · ${esc(tm)}.</span></div></div>
   <div class="card"><h3>Grade 11 sections</h3><div class="row"><input id="scn" placeholder="e.g. ASSH A" style="max-width:260px"><button class="btn" data-a="addsec">Create section</button></div>
   ${tbl(["Section","Adviser",""],secs.map(s=>[esc(s.name),advCell(s),`<div class="row">${s.adviserUid?btn("unlockadv","Reassign",s.id):btn("setadv","Save adviser",s.id)}${btn("delsec","Delete",s.id,"danger")}</div>`]),"No sections yet.","nw")}
   <p class="hint">Each teacher can advise only one section. Once assigned, use Reassign only to correct a mistake.</p></div>
