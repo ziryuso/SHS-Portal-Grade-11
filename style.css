@@ -421,3 +421,22 @@ img.avatar{display:block}
 .cev{padding:8px 0;border-bottom:1px solid var(--line)}.cev p{margin:4px 0 0}
 .cadd{display:flex;flex-direction:column;gap:8px;margin-top:12px}
 .note.big{font-size:13.5px;line-height:1.45;padding:10px 12px;margin-bottom:12px}
+
+/* ---------- v4: sign-in card layout (header / body / grey footer) ---------- */
+.authw{max-width:400px}
+.brandh{gap:12px;margin-bottom:16px}
+.brandh h1{font-size:1.45rem;line-height:1.15}
+.brandh .logo-img.big{width:58px;height:58px}
+.card.acard{padding:0;overflow:hidden;border:0;border-radius:16px;box-shadow:0 10px 34px rgba(15,27,61,.2);position:relative;background:#fff}
+.acard::before{content:"";display:block;height:4px;background:linear-gradient(90deg,#1d4ed8,#6d28d9)}
+.ac-h{padding:14px 20px;text-align:center;font-size:1.05rem;font-weight:600;border-bottom:1px solid var(--line);color:var(--ink)}
+.ac-b{padding:20px}
+.ac-f{padding:16px 20px 20px;background:#f4f6fb;border-top:1px solid var(--line)}
+.ac-f .lg-links{flex-direction:column;align-items:center;gap:6px;font-size:14px;margin:0}
+.ac-f .or{margin:12px 0 10px}
+.fi{position:relative}
+.fi .fic{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:#7b86a0;pointer-events:none}
+.fi input{padding-left:40px;background:#f1f5ff;border-color:#d6e0f5}
+.fi input:focus{background:#fff;border-color:var(--pri)}
+.lg-row{justify-content:space-between;flex-wrap:nowrap}
+.lg-rm{font-weight:600;color:#4b5568}
