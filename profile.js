@@ -14,7 +14,7 @@ export const photoCard=()=>`<div class="card row" style="gap:14px">${avatar(S.me
 act.pickphoto=()=>document.getElementById("photoin").click();
 act.pickphoto2=()=>document.getElementById("photoin2").click();
 /* floating profile card (admin): opened from the account menu */
-export const profInner=()=>{const m=S.me;return `<div class="pp-top">${avatar(m,"xl")}<div class="pp-i"><b>${esc(m.name)}</b><div class="mut sm">${esc(m.email||"")}</div><span class="badge">${esc(m.role[0].toUpperCase()+m.role.slice(1))}</span></div></div>
+export const profInner=()=>{const m=S.me;return `<div class="pp-top">${avatar(m,"xl")}<div class="pp-i"><b>${esc(m.name)}</b><div class="mut sm">${esc(m.email||"")}</div>${m.role==="teacher"&&S.advSecs.length?`<div class="mut sm">Advisory: ${esc(S.advSecs.map(s=>s.name).join(", "))}</div>`:""}<span class="badge">${esc(m.role[0].toUpperCase()+m.role.slice(1))}</span></div></div>
   <div class="row" style="margin-top:12px"><button class="btn sm" data-a="pickphoto2">${m.photo?"Change photo":"Upload photo"}</button>${m.photo?`<button class="btn sm ghost" data-a="rmphoto">Remove</button>`:""}<button class="btn sm ghost" data-a="out">Log out</button></div>
   <input type="file" id="photoin2" accept="image/*" data-c="photo" hidden>`};
 const refreshProf=()=>{const e=document.getElementById("pprof");if(e&&!e.hidden)e.innerHTML=profInner()};
