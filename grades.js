@@ -6,23 +6,34 @@ import {S,act,chg,$,$$,esc,list,db,doc,getDoc,setDoc,updateDoc,writeBatch,where,
 
 const syKey=sy=>String(sy||"SY").replace(/[^A-Za-z0-9]+/g,"-");
 const sheetId=(sid,sub,t,sy=S.set.schoolYear)=>`${sid}_${sub}_${t}_${syKey(sy)}`;
+/* subject order: the admin can number subjects (1 = first); otherwise the DepEd order of the core subjects is used */
+const DEPED=["effective communication/mabisang komunikasyon","effective communication","mabisang komunikasyon","general mathematics","general science","life and career skills","pag-aaral ng kasaysayan at lipunang pilipino"];
+const ordOf=s=>{if(s.order!==undefined&&s.order!==null&&s.order!=="")return +s.order;const i=DEPED.indexOf((s.name||"").toLowerCase().replace(/\s+/g," ").trim());return i>=0?i+1:999};
+export const subjectSort=(a,b)=>ordOf(a)-ordOf(b)||(a.name||"").localeCompare(b.name||"");
 const byName=(a,b)=>(a.name||"").localeCompare(b.name||"");
 const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
 const gradeOf=sec=>sec.grade||(/\b12\b|XII/i.test(sec.name||"")?"Grade 12":"Grade 11");
-export const termsOf=s=>!s.term||s.term==="all"?[1,2,3]:[+s.term];
+/* a "combined" subject (e.g. Effective Communication/Mabisang Komunikasyon) has no teacher of its own:
+   its grade is the average of its parts, and each part is taught and graded separately */
+export const termsOf=s=>s.combo?(s.parts?.length?[...new Set(s.parts.flatMap(termsOf))].sort():[1,2,3]):(!s.term||s.term==="all"?[1,2,3]:[+s.term]);
+const flat=c=>[...c.core,...c.elective].flatMap(s=>s.combo?[s,...(s.parts||[])]:[s]);
 export function curriculumFor(sec,subjects){
   const sy=S.set.schoolYear,g=gradeOf(sec);
   const ok=subjects.filter(x=>(!x.schoolYear||!sy||x.schoolYear===sy)&&(x.grade||"Grade 11")===g&&(!sec.track||!x.track||x.track==="All tracks"||x.track===sec.track));
-  return {core:ok.filter(x=>x.type!=="elective").sort(byName),elective:ok.filter(x=>x.type==="elective").sort(byName)};
+  const combos=new Set(ok.filter(x=>x.combo).map(x=>x.id)),parts=ok.filter(x=>x.parentId&&combos.has(x.parentId));
+  const top=ok.filter(x=>!parts.includes(x)).map(x=>x.combo?{...x,parts:parts.filter(p=>p.parentId===x.id).sort(subjectSort)}:x);
+  return {core:top.filter(x=>x.type!=="elective").sort(subjectSort),elective:top.filter(x=>x.type==="elective").sort(subjectSort)};
 }
 const toMap=docs=>{const g={};docs.forEach(x=>{(g[x.subjectId]??={})[x.term]=x.grade});return g};
-const finalOf=(s,g)=>{const v=termsOf(s).map(t=>g[s.id]?.[t]);return v.every(x=>x!=null)?Math.round(avg(v)):null};
+const gradeAt=(s,g,t)=>{if(!s.combo)return g[s.id]?.[t];
+  const v=(s.parts||[]).filter(p=>termsOf(p).includes(t)).map(p=>g[p.id]?.[t]);return v.length&&v.every(x=>x!=null)?Math.round(avg(v)):undefined};
+const finalOf=(s,g)=>{const v=termsOf(s).map(t=>gradeAt(s,g,t));return v.every(x=>x!=null)?Math.round(avg(v)):null};
 const genAvg=(subs,g)=>{const f=subs.map(s=>finalOf(s,g)).filter(x=>x!=null);return f.length?Math.round(avg(f)):null};
 
 /* the report-card style table */
 export function gradeTable(cur,g){
-  const row=s=>{const T=termsOf(s),f=finalOf(s,g);
-    return `<tr><td class="la">${esc(s.name)}</td>${[1,2,3].map(t=>T.includes(t)?`<td class="gc">${g[s.id]?.[t]??""}</td>`:`<td class="na"></td>`).join("")}<td class="gc fg">${f??""}</td><td class="gc ${f==null?"":f>=75?"okc":"badc"}">${f==null?"":f>=75?"Passed":"Failed"}</td></tr>`};
+  const row=(s,sub)=>{const T=termsOf(s),f=finalOf(s,g);
+    return `<tr><td class="la ${sub?"sub":""}">${esc(s.name)}</td>${[1,2,3].map(t=>T.includes(t)?`<td class="gc">${gradeAt(s,g,t)??""}</td>`:`<td class="na"></td>`).join("")}<td class="gc fg">${f??""}</td><td class="gc ${f==null?"":f>=75?"okc":"badc"}">${f==null?"":f>=75?"Passed":"Failed"}</td></tr>`+(s.parts||[]).map(p=>row(p,true)).join("")};
   const band=t=>`<tr class="band"><td colspan="6">${t}</td></tr>`,none=`<tr><td colspan="6" class="mut">No subjects in the curriculum for this grade yet.</td></tr>`;
   return `<div class="tw"><table class="gt"><thead><tr><th rowspan="2">Learning Areas</th><th colspan="3">TERM</th><th rowspan="2">Final Grade</th><th rowspan="2">Remarks</th></tr><tr><th>1</th><th>2</th><th>3</th></tr></thead><tbody>
   ${band("Core Subjects")}${cur.core.map(row).join("")||none}${band("Elective Subjects")}${cur.elective.map(row).join("")||none}
@@ -61,7 +72,7 @@ export const gradesTeacher=async()=>{
     return `<a class="tgc ${k}" href="#/gradesheet/${sec.id}/${sub.id}/${t}">Term ${t} · ${lb}</a>`}).join("");
   const line=(sec,sub)=>`<div class="item"><div style="min-width:160px"><b>${esc(sub.name)}</b><div class="mut sm">${esc(sec.name)}</div></div><div class="row">${chips(sec,sub)}</div></div>`;
   const mine=loads.map(l=>{const sec=secs.find(s=>s.id===l.sectionId),sub=subjects.find(s=>s.id===l.subjectId);return sec&&sub?line(sec,sub):""}).join("");
-  const advBlocks=S.advSecs.map(a=>{const sec=secs.find(s=>s.id===a.id)||a,c=curriculumFor(sec,subjects),all=[...c.core,...c.elective];
+  const advBlocks=S.advSecs.map(a=>{const sec=secs.find(s=>s.id===a.id)||a,c=curriculumFor(sec,subjects),all=flat(c).filter(s=>!s.combo);
     const free=all.filter(s=>!advLoads.some(l=>l.sectionId===sec.id&&l.subjectId===s.id));
     return `<div class="card"><h3>${esc(sec.name)}: subjects with no teacher yet</h3><p class="hint">As adviser you can type these grades yourself. Once a teacher is assigned to a subject, that teacher enters it instead.</p>${free.map(s=>line(sec,s)).join("")||empty("Every subject in this section has a teacher.","check")}</div>`}).join("");
   return head("Term Grades","Type the grades, save as draft, then submit for the administrator's approval")+
@@ -111,10 +122,10 @@ export async function consolidated(sec,studs){
   return `<div class="card" id="consol">${consBody()}</div>`;
 }
 const consBody=()=>{
-  const {cur,studs,fg,view,pick}=CONS,subs=[...cur.core,...cur.elective];
-  const cell=(u,s)=>{const g=toMap(fg.filter(x=>x.uid===u.id));if(view==="final")return finalOf(s,g);const t=+view;return termsOf(s).includes(t)?(g[s.id]?.[t]??null):"–"};
+  const {cur,studs,fg,view,pick}=CONS,subs=flat(cur),top=[...cur.core,...cur.elective];
+  const cell=(u,s)=>{const g=toMap(fg.filter(x=>x.uid===u.id));if(view==="final")return finalOf(s,g);const t=+view;return termsOf(s).includes(t)?(gradeAt(s,g,t)??null):"–"};
   const rows=studs.map(u=>{const g=toMap(fg.filter(x=>x.uid===u.id)),vals=subs.map(s=>cell(u,s));
-    const ga=view==="final"?genAvg(subs,g):(()=>{const n=vals.filter(x=>typeof x==="number");return n.length?Math.round(avg(n)):null})();
+    const ga=view==="final"?genAvg(top,g):(()=>{const n=top.map(s=>cell(u,s)).filter(x=>typeof x==="number");return n.length?Math.round(avg(n)):null})();
     return [`<button class="linkb" data-a="cons_pick" data-id="${u.id}">${esc(u.name)}</button>`,...vals.map(x=>x??""),`<b>${ga??""}</b>`]});
   const sel=`<select data-c="cons_view" aria-label="Show">${[["final","Final grade"],["1","Term 1"],["2","Term 2"],["3","Term 3"]].map(([v,t])=>`<option value="${v}" ${view===v?"selected":""}>${t}</option>`).join("")}</select>`;
   const u=studs.find(x=>x.id===pick);
