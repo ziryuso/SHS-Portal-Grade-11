@@ -116,10 +116,10 @@ const termTxt=t=>!t||t==="all"?"All terms":"Term "+t;
 const curRows=()=>CUR.subs.filter(x=>(!CF.sy||sYear(x)===CF.sy)&&(!CF.grade||sGrade(x)===CF.grade)
   &&(!CF.term||!x.term||x.term==="all"||String(x.term)===CF.term)&&(!CF.track||!x.track||x.track==="All tracks"||x.track===CF.track));
 const curList=()=>{const r=curRows();return `<div class="muted sm mut" style="margin-bottom:6px">${r.length} of ${CUR.subs.length} subject(s)</div>`+
-  tbl(["Subject","Grade","School year","Type","Term","Track",""],r.map(x=>[esc(x.name)+(x.combo?` ${badge("combined","info")}`:"")+(x.parentId?` <span class="mut sm">↳ part of ${esc(CUR.subs.find(c=>c.id===x.parentId)?.name||"?")}</span>`:""),esc(sGrade(x)),esc(sYear(x)||"–"),esc(x.type),termTxt(x.term),esc(x.track),
+  tbl(["Subject","Grade","School year","Type","Term","Track",""],r.map(x=>[esc(x.name)+(x.type==="elective"&&x.sectionIds?.length?` <span class="mut sm">· only ${x.sectionIds.map(i=>esc(CUR.secs.find(c=>c.id===i)?.name||"?")).join(", ")}</span>`:"")+(x.combo?` ${badge("combined","info")}`:"")+(x.parentId?` <span class="mut sm">↳ part of ${esc(CUR.subs.find(c=>c.id===x.parentId)?.name||"?")}</span>`:""),esc(sGrade(x)),esc(sYear(x)||"–"),esc(x.type),termTxt(x.term),esc(x.track),
     `<div class="row">${btn("editsub","Edit",x.id,"ghost")}${btn("delsub","Delete",x.id,"danger")}</div>`]),"No subjects match these filters.")};
 pages.curriculum=async()=>{
-  CUR.subs=(await list("subjects")).sort(subjectSort);
+  CUR.subs=(await list("subjects")).sort(subjectSort);CUR.secs=(await list("sections")).sort(byName);
   const years=[...new Set([S.set.schoolYear,...CUR.subs.map(sYear)].filter(Boolean))].sort().reverse();
   const sel=(f,id,label,opts)=>`<div><label class="f" for="${id}">${label}</label><select id="${id}" data-c="cf" data-f="${f}"><option value="">All</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${CF[f]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`;
   return head("SHS Curriculum","Subjects offered",`<button class="btn" data-a="addsub">+ Add subject</button>`)+
@@ -142,12 +142,19 @@ function subDialog(x){
   <div class="g2"><div><label class="f" for="d_kd">Kind</label><select id="d_kd">${o([["regular","Regular subject"],["combined","Combined (average of its parts)"]],x?.combo?"combined":"regular")}</select></div>
   <div><label class="f" for="d_pa">Part of</label><select id="d_pa"><option value="">None</option>${CUR.subs.filter(c=>c.combo&&(!x||c.id!==x.id)).map(c=>`<option value="${esc(c.id)}" ${x?.parentId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div></div>
   <p class="hint">Combined subject: create it first with no teacher. Then add each part (for example Effective Communication and Mabisang Komunikasyon), set “Part of” to the combined subject, and assign each part to its own teacher.</p>
+  <div id="d_secs" style="display:${(x?.type||"core")==="elective"?"block":"none"}"><label class="f">Offered to (electives)</label>
+  <div class="row" style="margin-bottom:6px"><button type="button" class="btn sm ghost" data-q="Academic">All Academic</button><button type="button" class="btn sm ghost" data-q="TVL">All TVL</button><button type="button" class="btn sm ghost" data-q="none">Clear</button></div>
+  <div class="wl" style="max-height:150px;overflow:auto">${CUR.secs.map(c=>`<label class="wr" style="justify-content:flex-start;gap:8px"><input type="checkbox" class="d_sc" value="${esc(c.id)}" data-t="${esc(c.track||"")}" ${x?.sectionIds?.includes(c.id)?"checked":""}> ${esc(c.name)} <span class="mut sm">${esc(c.track||"track not set")}</span></label>`).join("")||`<p class="mut sm">No sections yet.</p>`}</div>
+  <p class="hint">Only the ticked sections will have this elective. Tick none to offer it to every section. Set each section's track in Sections &amp; Loads.</p></div>
   <label class="f" for="d_or">Display order (1 = first, leave blank for the DepEd order)</label><input id="d_or" type="number" min="1" max="99" value="${x?.order??""}" placeholder="Auto">
   <label class="f" for="d_sd">Description</label><textarea id="d_sd" rows="2">${esc(x?.description||"")}</textarea>
   <p class="bad sm" id="d_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">Save</button></div>`;
   return new Promise(res=>{let done=false;const fin=r=>{if(done)return;done=true;d.close();d.remove();res(r)};
-    d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.value!=="1")return fin(null);
-      const g=i=>d.querySelector("#d_"+i).value.trim(),r={name:g("sn"),grade:g("gr"),schoolYear:g("sy"),type:g("st"),term:g("tm"),track:g("tk"),description:g("sd"),order:g("or")?+g("or"):null,combo:g("kd")==="combined",parentId:g("kd")==="combined"?"":g("pa")};
+    d.addEventListener("change",e=>{if(e.target.id==="d_st")d.querySelector("#d_secs").style.display=e.target.value==="elective"?"block":"none"});
+    d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+      if(b.dataset.q){d.querySelectorAll(".d_sc").forEach(c=>c.checked=b.dataset.q!=="none"&&c.dataset.t===b.dataset.q);return}
+      if(b.value!=="1")return fin(null);
+      const g=i=>d.querySelector("#d_"+i).value.trim(),r={name:g("sn"),grade:g("gr"),schoolYear:g("sy"),type:g("st"),term:g("tm"),track:g("tk"),description:g("sd"),order:g("or")?+g("or"):null,sectionIds:g("st")==="elective"?[...d.querySelectorAll(".d_sc:checked")].map(c=>c.value):[],combo:g("kd")==="combined",parentId:g("kd")==="combined"?"":g("pa")};
       if(!r.name){d.querySelector("#d_err").textContent="Enter the subject name.";return}fin(r)});
     d.addEventListener("cancel",e=>{e.preventDefault();fin(null)});
     document.body.append(d);d.showModal();d.querySelector("#d_sn").focus()});
@@ -179,8 +186,8 @@ pages.loads=async([syP,tmP])=>{
   <div><label class="f" for="vsy">School year</label><input id="vsy" list="syl" value="${esc(sy)}" placeholder="2026–2027" data-c="loadview"><datalist id="syl">${years.map(y=>`<option value="${esc(y)}">`).join("")}</datalist></div>
   <div><label class="f" for="vtm">Term</label><select id="vtm" data-c="loadview">${terms.map(t=>`<option ${t===tm?"selected":""}>${esc(t)}</option>`).join("")}</select></div></div>
   <div class="row" style="margin-top:10px">${isCur?badge("Current term","ok"):btn("setcur","Set as current")}${btn("syncnames","Refresh teacher names","","ghost")}<span class="hint">Subject loads below belong to ${esc(sy||"—")} · ${esc(tm)}.</span></div></div>
-  <div class="card"><h3>Grade 11 sections</h3><div class="row"><input id="scn" placeholder="e.g. ASSH A" style="max-width:260px"><button class="btn" data-a="addsec">Create section</button></div>
-  ${tbl(["Section","Adviser",""],secs.map(s=>[esc(s.name),advCell(s),`<div class="row">${s.adviserUid?btn("unlockadv","Reassign",s.id):btn("setadv","Save adviser",s.id)}${btn("delsec","Delete",s.id,"danger")}</div>`]),"No sections yet.","nw")}
+  <div class="card"><h3>Grade 11 sections</h3><div class="row"><input id="scn" placeholder="e.g. ASSH A" style="max-width:260px"><select id="sct" aria-label="Track" style="max-width:140px"><option>Academic</option><option>TVL</option></select><button class="btn" data-a="addsec">Create section</button></div>
+  ${tbl(["Section","Track","Adviser",""],secs.map(s=>[esc(s.name),`<select data-c="sectrack" data-id="${s.id}" aria-label="Track for ${esc(s.name)}"><option value="">Not set</option>${["Academic","TVL"].map(t=>`<option ${s.track===t?"selected":""}>${t}</option>`).join("")}</select>`,advCell(s),`<div class="row">${s.adviserUid?btn("unlockadv","Reassign",s.id):btn("setadv","Save adviser",s.id)}${btn("delsec","Delete",s.id,"danger")}</div>`]),"No sections yet.","nw")}
   <p class="hint">Each teacher can advise only one section. Once assigned, use Reassign only to correct a mistake.</p></div>
   <div class="card"><h3>Assign subject load</h3><div class="g2"><div><label class="f" for="ls">Subject</label><select id="ls">${o(subs,x=>x.name)}</select></div><div><label class="f" for="lc">Section</label><select id="lc">${o(secs,x=>x.name)}</select></div><div><label class="f" for="lt">Teacher</label><select id="lt">${o(T,x=>x.name)}</select></div></div>
   <p><button class="btn" data-a="addload">Assign</button></p>
@@ -193,7 +200,7 @@ act.setcur=async()=>{
   S.set={schoolYear:y,term:t};const f=$(".foot");if(f)f.textContent=`SY ${y} ${t}`;
   log("set current term "+y+" "+t);toast("Current school year and term saved.");refresh();
 };
-act.addsec=async()=>{if(!v("scn"))return toast("Enter a section name.","bad");await addDoc(collection(db,"sections"),{name:v("scn")});log("created section "+v("scn"));toast("Section created.");refresh()};
+act.addsec=async()=>{if(!v("scn"))return toast("Enter a section name.","bad");await addDoc(collection(db,"sections"),{name:v("scn"),track:v("sct")||"Academic"});log("created section "+v("scn"));toast("Section created.");refresh()};
 act.unlockadv=async el=>{
   if(!await ask("Reassign this adviser? Only do this to correct a mistake.","Reassign"))return;
   const s=$("#adv_"+el.dataset.id);s.disabled=false;s.focus();el.textContent="Save adviser";el.dataset.a="setadv";
@@ -240,3 +247,4 @@ pages.logs=async()=>{
   <div class="card"><h3>Storage monitor (free plan)</h3><p class="mut">Counts use cheap aggregate queries. Exact usage: Firebase Console → Firestore → Usage. Free quota: 1 GiB stored, 50k reads/day, 20k writes/day.</p></div>
   <div class="card"><h3>Activity log (latest 100)</h3>${tbl(["When","Who","Action"],l.map(x=>[fdate(ts(x.at)),esc(x.by),esc(x.action)]),"No log entries.","nw")}</div>`;
 };
+chg.sectrack=async el=>{await updateDoc(doc(db,"sections",el.dataset.id),{track:el.value});toast("Track saved.")};
