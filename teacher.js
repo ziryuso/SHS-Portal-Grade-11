@@ -191,23 +191,45 @@ pages.load=async([id,tab="activities",extra])=>{
     return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl,sk)}${twBadge(a)}${a.release?" "+badge("Answers released","ok"):""}
     <div class="mut sm">${a.questions.length} items · ${a.totalPts} pts · ${a.attempts} attempt(s)${a.timeLimit?" · "+a.timeLimit+" min":""} · ${a.closes?"Due "+fdate(a.closes):"No deadline"}${a.opens&&Date.now()<a.opens?" · Opens "+fdate(a.opens):""}</div>
     ${a.draft?"":`<div class="sm"><b>${new Set(ss.map(s=>s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg?` · <a href="#/grade/${a.id}">${badge(tg+" to grade","warn")}</a>`:""}</div>`}</div>
-    <div class="row">${a.draft?"":`<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${a.hasEssay?`<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>`:""}${btn("relact",a.release?"Hide answers":"Release answers",a.id,"ghost")}${btn("dupact","Duplicate",a.id,"ghost")}${btn("delact","Delete",a.id,"danger")}</div></div>`};
-  const annItem=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div><div class="row">${btn("t_tag","Term/Week",x.id,"ghost",`data-col="classAnn" data-t="${x.term||""}" data-w="${x.week||""}"`)}${btn("t_delann","Delete",x.id,"danger")}</div></div>`;
-  const matItem=m=>`<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${btn("t_tag","Term/Week",m.id,"ghost",`data-col="materials" data-t="${m.term||""}" data-w="${m.week||""}"`)}${btn("t_delmat","Delete",m.id,"danger")}</div></div>`;
-  const fold=(t,n,add,items)=>`<details class="fold" open><summary><span class="sp">${t}</span><span class="badge mut">${n}</span>${add}</summary>${items.join("")||`<p class="mut sm">Nothing yet.</p>`}</details>`;
+    <div class="row">${a.draft?"":`<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}${a.hasEssay?`<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>`:""}${ED?`<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${btn("relact",a.release?"Hide answers":"Release answers",a.id,"ghost")}${btn("dupact","Duplicate",a.id,"ghost")}${btn("delact","Delete",a.id,"danger")}`:""}</div></div>`};
+  const annItem=x=>`<div class="item"><div><b>${esc(x.title||"Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g,"<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${ED?`<div class="row">${btn("t_tag","Term/Week",x.id,"ghost",`data-col="classAnn" data-t="${x.term||""}" data-w="${x.week||""}"`)}${btn("t_delann","Delete",x.id,"danger")}</div>`:""}</div>`;
+  const matItem=m=>`<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note?`<div class="mut sm">${esc(m.note)}</div>`:""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${ED?btn("t_tag","Term/Week",m.id,"ghost",`data-col="materials" data-t="${m.term||""}" data-w="${m.week||""}"`)+btn("t_delmat","Delete",m.id,"danger"):""}</div></div>`;
+  const fold=(t,n,items)=>`<div class="fold2"><div class="fh"><span class="sp">${t}</span><span class="badge mut">${n}</span></div>${items.join("")||`<p class="mut sm">Nothing yet.</p>`}</div>`;
   const docNames=new Set(c.topics.map(t=>t.name));
-  const legacy=[...new Set([...c.acts.map(a=>a.topic),...c.mats.map(m=>m.topic),...c.anns.map(x=>x.topic)].filter(n=>n&&!docNames.has(n)))].sort();
-  const names=[...c.topics.map(t=>t.name),...legacy];
+  const legacy=[...new Set([...c.acts.map(a=>a.topic),...c.mats.map(m=>m.topic),...c.anns.map(x=>x.topic)].filter(n=>n&&!docNames.has(n)))];
   const sortT=l=>[...l].sort((x,y)=>(x.draft?0:1)-(y.draft?0:1)||ts(y.at)-ts(x.at));
-  const topicCard=t=>{const td=c.topics.find(x=>x.name===t),e=esc(t),ex=`data-topic="${e}"`;
-    return `<div class="card topic"><div class="row between"><h3>${e}</h3>${td?btn("t_deltopic","Delete topic",td.id,"ghost",`data-lid="${id}" ${ex}`):""}</div>
-    ${fold("Announcements",c.anns.filter(x=>x.topic===t).length,btn("t_addann","+ Add",id,"ghost",ex),c.anns.filter(x=>x.topic===t).map(annItem))}
-    ${fold("Materials",c.mats.filter(m=>m.topic===t).length,btn("t_addmat","+ Add",id,"ghost",ex),c.mats.filter(m=>m.topic===t).map(matItem))}
-    ${fold("Tests",c.acts.filter(a=>a.topic===t).length,btn("t_newtest","+ New test",id,"",ex),sortT(c.acts.filter(a=>a.topic===t)).map(testItem))}</div>`};
+  const recent=l=>[...l].sort((x,y)=>ts(y.at)-ts(x.at));
+  /* most recently touched topic first */
+  const lastOf=t=>Math.max(ts(c.topics.find(x=>x.name===t)?.at),...[...c.acts,...c.mats,...c.anns].filter(x=>x.topic===t).map(x=>ts(x.at)),0);
+  const names=[...c.topics.map(t=>t.name),...legacy].sort((x,y)=>lastOf(y)-lastOf(x));
+  const topicCard=t=>{const td=c.topics.find(x=>x.name===t),e=esc(t),ex=`data-topic="${e}"`,ed=EDIT.has(t),open=OPEN.has(t);ED=ed;
+    const an=recent(c.anns.filter(x=>x.topic===t)),ma=recent(c.mats.filter(m=>m.topic===t)),te=sortT(c.acts.filter(a=>a.topic===t));
+    const html=`<div class="card tpc ${open?"open":""}"><div class="tph"><button class="tpt" data-a="t_tog" data-topic="${e}" aria-expanded="${open}"><span class="car" aria-hidden="true">▸</span><span class="tn">${e}</span><span class="mut sm">${an.length} announcement(s) · ${ma.length} material(s) · ${te.length} test(s)</span></button>
+      <button class="btn sm" data-a="t_create" data-id="${id}" ${ex}>+ Create</button></div>
+      <div class="tpb"><div class="row between tpbar"><span class="mut sm">${ed?"Editing: you can delete items or change their term/week.":""}</span>
+      <div class="row">${ed?`${td?btn("t_deltopic","Delete topic",td.id,"ghost",`data-lid="${id}" ${ex}`):""}${btn("t_save","Save","","",ex)}`:btn("t_edit","Edit","","ghost",ex)}</div></div>
+      ${fold("Announcements",an.length,an.map(annItem))}${fold("Materials",ma.length,ma.map(matItem))}${fold("Tests",te.length,te.map(testItem))}</div></div>`;
+    ED=false;return html};
   const loose={a:c.acts.filter(a=>!a.topic),m:c.mats.filter(m=>!m.topic)};
-  return hd+`<div class="row between" style="margin-bottom:10px"><span class="mut sm">${names.length} topic(s) · ${c.acts.filter(a=>a.draft).length} draft(s)</span>${btn("t_addtopic","+ New topic",id)}</div>`+
-  (names.map(topicCard).join("")+(loose.a.length||loose.m.length?`<div class="card"><h3>No topic</h3><p class="hint">Older items. Edit a test to move it into a topic.</p>${loose.m.map(matItem).join("")}${sortT(loose.a).map(testItem).join("")}</div>`:"")
+  ED=true;const looseHtml=loose.a.length||loose.m.length?`<div class="card"><h3>No topic</h3><p class="hint">Older items. Edit a test to move it into a topic.</p>${loose.m.map(matItem).join("")}${sortT(loose.a).map(testItem).join("")}</div>`:"";ED=false;
+  return hd+`<div class="row between" style="margin-bottom:10px"><span class="mut sm">${names.length} topic(s) · ${c.acts.filter(a=>a.draft).length} draft(s) · newest first</span>${btn("t_addtopic","+ New topic",id)}</div>`+
+  (names.map(topicCard).join("")+looseHtml
   ||`<div class="card">${empty("No topics yet. Create a topic first, then add announcements, materials and tests inside it.","list")}</div>`);
+};
+/* topic accordion state survives page refreshes; Edit mode is per topic */
+let ED=false;const OPEN=new Set(),EDIT=new Set();
+act.t_tog=el=>{const t=el.dataset.topic,card=el.closest(".tpc"),o=!card.classList.contains("open");card.classList.toggle("open",o);el.setAttribute("aria-expanded",o);o?OPEN.add(t):OPEN.delete(t)};
+act.t_edit=el=>{EDIT.add(el.dataset.topic);OPEN.add(el.dataset.topic);refresh()};
+act.t_save=el=>{EDIT.delete(el.dataset.topic);toast("Saved.");refresh()};
+/* one "+ Create" button: pick announcement, material or test */
+act.t_create=el=>{
+  const topic=el.dataset.topic,id=el.dataset.id,d=document.createElement("dialog");d.className="modal";
+  d.innerHTML=`<h3>Create in “${esc(topic)}”</h3><div class="cr"><button class="btn" data-g="t_addann">Announcement</button><button class="btn" data-g="t_addmat">Material</button><button class="btn" data-g="t_newtest">Test</button></div><div class="end"><button class="btn ghost" data-g="x">Cancel</button></div>`;
+  const fin=()=>{d.close();d.remove()};
+  d.addEventListener("click",async e=>{const b=e.target.closest("[data-g]");if(!b)return;fin();if(b.dataset.g==="x")return;
+    OPEN.add(topic);try{await act[b.dataset.g]({dataset:{id,topic}})}catch(err){toast(errMsg(err),"bad")}});
+  d.addEventListener("cancel",e=>{e.preventDefault();fin()});
+  document.body.append(d);d.showModal();
 };
 
 act.csvrec=()=>S.tmp&&saveCsv(S.tmp.name,S.tmp.rows);
