@@ -19,7 +19,7 @@ export const termsOf=s=>s.combo?(s.parts?.length?[...new Set(s.parts.flatMap(ter
 const flat=c=>[...c.core,...c.elective].flatMap(s=>s.combo?[s,...(s.parts||[])]:[s]);
 export function curriculumFor(sec,subjects){
   const sy=S.set.schoolYear,g=gradeOf(sec);
-  const ok=subjects.filter(x=>(!x.schoolYear||!sy||x.schoolYear===sy)&&(x.grade||"Grade 11")===g&&(!sec.track||!x.track||x.track==="All tracks"||x.track===sec.track));
+  const ok=subjects.filter(x=>(!x.schoolYear||!sy||x.schoolYear===sy)&&(x.grade||"Grade 11")===g&&(!sec.track||!x.track||x.track==="All tracks"||x.track===sec.track)&&(x.type!=="elective"||!x.sectionIds?.length||x.sectionIds.includes(sec.id)));
   const combos=new Set(ok.filter(x=>x.combo).map(x=>x.id)),parts=ok.filter(x=>x.parentId&&combos.has(x.parentId));
   const top=ok.filter(x=>!parts.includes(x)).map(x=>x.combo?{...x,parts:parts.filter(p=>p.parentId===x.id).sort(subjectSort)}:x);
   return {core:top.filter(x=>x.type!=="elective").sort(subjectSort),elective:top.filter(x=>x.type==="elective").sort(subjectSort)};
