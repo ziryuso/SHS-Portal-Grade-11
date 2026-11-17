@@ -3,6 +3,7 @@ import {S,act,chg,$,esc,v,list,count,db,doc,getDoc,setDoc,addDoc,updateDoc,delet
 export const nav=()=>[
   {k:"home",l:"Dashboard",i:"home"},
   {k:"approvals",l:"Approvals",i:"check"},
+  {k:"grades",l:"Grades",i:"chart"},
   {k:"accounts",l:"Accounts",i:"users"},
   {k:"curriculum",l:"Curriculum",i:"book"},
   {k:"loads",l:"Sections & Loads",i:"grid"},
@@ -10,7 +11,9 @@ export const nav=()=>[
   {k:"settings",l:"Settings",i:"settings"},
   {k:"logs",l:"Logs & Storage",i:"shield"}];
 import {generalProfile} from "./profile.js";
+import {gradesAdmin} from "./grades.js";
 export const pages={profile:generalProfile};
+pages.grades=gradesAdmin;
 const byName=(a,b)=>(a.name||"").localeCompare(b.name||"");
 const SB={approved:["Approved","ok"],pending:["Pending","warn"],inactive:["Inactive","bad"]};
 
