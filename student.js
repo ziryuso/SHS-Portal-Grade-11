@@ -1,10 +1,11 @@
 import {photoCard} from "./profile.js";
+import {termGradeStudent} from "./grades.js";
 import {S,act,$,$$,esc,list,db,doc,getDoc,setDoc,addDoc,updateDoc,collection,where,serverTimestamp,toast,ask,go,fdate,pct,bar,badge,stat,tbl,head,empty,ic,sha,shuffle,qMax,annHtml,greet,fday,mmss,errMsg,ts,norm} from "./core.js";
 
 export const nav=()=>[
   {k:"home",l:"Dashboard",i:"home"},
   {k:"subjects",l:"Subjects",i:"book",m:["subject","take"]},
-  {k:"grades",l:"My Grades",i:"chart",m:["result"]},
+  {k:"grades",l:"Term Grade",i:"chart",m:["result"]},
   {k:"announcements",l:"News",i:"bell"},
   {k:"profile",l:"Profile",i:"users"}];
 export const pages={};
@@ -63,11 +64,11 @@ pages.home=async()=>{
   return `<div class="banner"><h1>${greet()}, ${esc(m.name.split(",").pop().trim().split(" ")[0])}!</h1>
   <p>${fday(Date.now())}${d.sec?.name?" · "+esc(d.sec.name):""}</p></div>
   ${minor}
-  <div class="cards">${stat("Activities to do",todo.length,todo.length?"Start with the earliest deadline":"You're all caught up","clock",todo.length?"warn":"ok")}
+  <div class="cards stats4">${stat("Activities to do",todo.length,todo.length?"Start with the earliest deadline":"You're all caught up","clock",todo.length?"warn":"ok")}
   ${stat("Completed",`${d.subs.length}/${d.acts.length}`,"Activities answered","check","ok")}
   ${stat("Average score",avg==null?"–":avg+"%","Across graded activities","star")}
   ${stat("Attempts left",left,"On open activities","list")}</div>
-  <div class="cols"><div class="card"><h3>Due soon</h3>${todo.slice(0,5).map(x=>`<div class="item"><div><b>${esc(x.a.title)}</b><div class="mut sm">${esc(subjName(d,loadOf(d,x.a)))} · ${dueTxt(x.a)}</div></div><a class="btn sm" href="#/take/${x.a.id}">${x.st==="progress"?"Resume":"Start"}</a></div>`).join("")||empty("Nothing due right now.","check")}</div>
+  <div class="cols dash2"><div class="card"><h3>Due soon</h3>${todo.slice(0,5).map(x=>`<div class="item"><div><b>${esc(x.a.title)}</b><div class="mut sm">${esc(subjName(d,loadOf(d,x.a)))} · ${dueTxt(x.a)}</div></div><a class="btn sm" href="#/take/${x.a.id}">${x.st==="progress"?"Resume":"Start"}</a></div>`).join("")||empty("Nothing due right now.","check")}</div>
   <div class="card"><h3>Recent scores</h3>${recent.map(s=>`<div class="item"><div><b>${esc(actOf(s.actId)?.title||"Activity")}</b><div class="mut sm">${pend(s)?"Awaiting grading":""}</div></div><div style="min-width:110px"><b>${pend(s)?"…":sp(s)+"%"}</b>${bar(pend(s)?0:sp(s),sp(s)<75?"warn":"ok")}</div></div>`).join("")||empty("No scores yet.","chart")}</div></div>
   <h2>My subjects</h2><div class="cards">${d.loads.map(l=>subjCard(d,l)).join("")||`<div class="card">${empty("No subjects assigned to your section yet.","book")}</div>`}</div>
   <h2>Latest announcements</h2>${await annHtml(3)}`;
@@ -199,7 +200,22 @@ pages.take=async([id])=>{
     }
     const vis=()=>{if(document.hidden){dr.sw=(dr.sw||0)+1;putDraft(id,dr)}};
     document.addEventListener("visibilitychange",vis);
-    S.cleanup=()=>{clearInterval(RUN.iv);document.removeEventListener("visibilitychange",vis)};
+    /* Test shield. A web page cannot truly block screenshots or screen recording (the phone or computer does that outside the page),
+       so this makes capturing hard, useless and traceable: the questions hide whenever the window loses focus or a capture key is pressed,
+       copy/right-click/print are off, and every screen carries a faint watermark with the student's name. */
+    const shield=document.createElement("div");shield.id="shield";shield.innerHTML=`<div><b>Test hidden</b><p>Come back to this window to continue.<br>Screenshots and screen recording are not allowed during a test.</p></div>`;document.body.append(shield);
+    const wm=`<svg xmlns="http://www.w3.org/2000/svg" width="260" height="150"><text x="20" y="90" transform="rotate(-25 130 75)" font-family="Arial" font-size="15" fill="rgba(100,100,100,.16)">${esc((S.me.alias||"")+" · "+(S.me.name||""))}</text></svg>`;
+    document.body.style.setProperty("--wm",`url("data:image/svg+xml,${encodeURIComponent(wm)}")`);document.body.classList.add("testing");
+    const hide=on=>shield.classList.toggle("on",on),strike=()=>{dr.sw=(dr.sw||0)+1;putDraft(id,dr)};
+    const onBlur=()=>hide(true),onFocus=()=>hide(false);
+    const onKey=e=>{const k=(e.key||"").toLowerCase();
+      if(k==="printscreen"||(e.metaKey&&e.shiftKey&&["3","4","5"].includes(e.key))||(e.ctrlKey&&["p","s"].includes(k))||(e.ctrlKey&&e.shiftKey&&k==="s")){
+        e.preventDefault();hide(true);try{navigator.clipboard.writeText(" ")}catch{}if(k==="printscreen")strike();setTimeout(()=>{if(document.hasFocus())hide(false)},1500)}};
+    const block=e=>{if(!e.target.closest?.("input,textarea")||e.type==="contextmenu")e.preventDefault()};
+    addEventListener("blur",onBlur);addEventListener("focus",onFocus);addEventListener("keydown",onKey);addEventListener("keyup",onKey);
+    ["contextmenu","copy","cut","dragstart"].forEach(t=>document.addEventListener(t,block));
+    S.cleanup=()=>{clearInterval(RUN.iv);document.removeEventListener("visibilitychange",vis);removeEventListener("blur",onBlur);removeEventListener("focus",onFocus);removeEventListener("keydown",onKey);removeEventListener("keyup",onKey);
+      ["contextmenu","copy","cut","dragstart"].forEach(t=>document.removeEventListener(t,block));shield.remove();document.body.classList.remove("testing");document.body.style.removeProperty("--wm")};
   };
   return `<div class="card runhead"><div class="row between"><div><b>${esc(a.title)}</b><div class="mut sm">${total} items · ${a.totalPts} points${a.shuffle?" · shuffled":""}</div></div>
   <div class="row">${isFinite(dl())?`<span class="timer" id="tmw">${ic("clock")}<span id="tm">--:--</span></span>`:""}<button class="btn" id="sbtn" data-a="runSubmit">Submit</button></div></div>
@@ -265,17 +281,7 @@ pages.result=async([id])=>{
 };
 
 /* ---------- grades ---------- */
-pages.grades=async()=>{
-  const d=await data();
-  const rows=d.loads.map(l=>{const as=d.acts.filter(a=>a.loadId===l.id);
-    const ss=as.map(a=>d.sm[a.id]).filter(s=>s&&!pend(s)),avg=ss.length?Math.round(ss.reduce((n,s)=>n+sp(s),0)/ss.length):null;
-    return {l,as,avg}});
-  const all=rows.filter(r=>r.avg!=null);
-  return head("My grades",`${d.sec?.name||""}${S.set.schoolYear?" · SY "+S.set.schoolYear:""}`,`<button class="btn ghost" data-a="print">Print</button>`)+
-  `<div class="cards">${stat("Overall average",all.length?Math.round(all.reduce((n,r)=>n+r.avg,0)/all.length)+"%":"–","Across subjects with graded work","star","ok")}${stat("Activities done",`${d.subs.length}/${d.acts.length}`,"","check")}</div>`+
-  rows.map(r=>`<div class="card"><div class="row between"><h3>${esc(subjName(d,r.l))}</h3><b>${r.avg==null?"–":r.avg+"%"}</b></div>
-  ${tbl(["Activity","Status","Score","%"],r.as.map(a=>{const s=d.sm[a.id],[lb,k]=SB[status(a,s)];return [esc(a.title),badge(lb,k),s?`${(s.best||0)+(s.manualTotal||0)}/${s.total}`:"–",s?(pend(s)?"…":sp(s)+"%"):"–"]}),"No activities yet.")}</div>`).join("")||`<div class="card">${empty("No subjects yet.")}</div>`;
-};
+pages.grades=termGradeStudent;
 
 pages.announcements=async()=>head("Announcements","From the school administration")+await annHtml(30);
 
