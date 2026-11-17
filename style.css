@@ -500,3 +500,10 @@ a.card.clk,a.card.clk *,a.card.clk:hover,a.card.clk:hover *{text-decoration:none
 .termmenu{position:absolute;left:0;top:calc(100% + 6px);min-width:160px;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh);padding:4px;z-index:30;display:flex;flex-direction:column}
 .termmenu button{border:0;background:none;text-align:left;font:inherit;padding:10px 12px;border-radius:8px;cursor:pointer;color:var(--ink)}
 .termmenu button:hover,.termmenu button.on{background:var(--soft);color:var(--pri);font-weight:600}
+
+/* phones: the blurred header made the fixed profile sheet position itself inside the 58px header, cutting off everything above the buttons */
+@media(max-width:640px){
+  .top{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card);z-index:60}
+  .pback{z-index:59}
+  .pprof{z-index:61;max-height:85vh;overflow-y:auto}
+}
