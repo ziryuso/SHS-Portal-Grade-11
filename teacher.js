@@ -1,13 +1,16 @@
 import {imgToData,readDocx} from "./docx.js";
+import {gradesTeacher,gradeSheet,consolidated} from "./grades.js";
 import {S,act,$,$$,esc,v,list,db,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,collection,where,writeBatch,serverTimestamp,toast,ask,go,fdate,ts,pct,bar,badge,stat,tbl,head,empty,btn,ic,sha,newSalt,shuffle,qMax,norm,annHtml,log,greet,fday,saveCsv,toLocalInput,fromLocalInput,errMsg,refresh} from "./core.js";
 
 export const nav=()=>[
   {k:"home",l:"Dashboard",i:"home"},
   {k:"classes",l:"My Classes",i:"book",m:["load","editor","grade"]},
+  {k:"grades",l:"Term Grades",i:"chart",m:["gradesheet"]},
   ...(S.advSecs.length?[{k:"advisory",l:"Advisory",i:"users"}]:[]),
   {k:"announcements",l:"News",i:"bell"}];
 import {generalProfile} from "./profile.js";
 export const pages={profile:generalProfile};
+pages.grades=gradesTeacher;pages.gradesheet=gradeSheet;
 
 /* ---------- helpers ---------- */
 const chunk=(a,n)=>{const r=[];for(let i=0;i<a.length;i+=n)r.push(a.slice(i,i+n));return r};
@@ -550,7 +553,7 @@ pages.advisory=async([sid])=>{
   return head("Advisory – "+sec.name,`${ok.length} enrolled student(s)`)+
   (S.advSecs.length>1?`<div class="row" style="margin-bottom:12px">${S.advSecs.map(s=>`<a class="btn sm ${s.id===sec.id?"":"ghost"}" href="#/advisory/${s.id}">${esc(s.name)}</a>`).join("")}</div>`:"")+
   `<div class="card"><h3>Pending student approvals</h3>${tbl(["Name","LRN","Email",""],pending.map(x=>[esc(x.name),esc(x.lrn||"–"),esc(x.email),btn("apvstu","Approve",x.id,"ok")]),"No pending students.")}</div>
-  <div class="card"><div class="row between"><h3>Consolidated grades</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
+  ${await consolidated(sec,ok)}<div class="card"><div class="row between"><h3>Activity averages</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
   ${tbl(["Student",...cols.map(c=>esc(c.n)),"General avg"],rows.map(r=>[esc(r.s.name),...r.vals.map(fm),`<b>${fm(r.gen)}</b>`]),"No approved students yet.","rec nw")}
   <p class="hint">Averages use each student's best graded score per activity. Missing work is not counted as zero.</p></div>`;
 };
