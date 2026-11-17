@@ -11,7 +11,7 @@ export const nav=()=>[
   {k:"settings",l:"Settings",i:"settings"},
   {k:"logs",l:"Logs & Storage",i:"shield"}];
 import {generalProfile} from "./profile.js";
-import {gradesAdmin} from "./grades.js";
+import {gradesAdmin,subjectSort} from "./grades.js";
 export const pages={profile:generalProfile};
 pages.grades=gradesAdmin;
 const byName=(a,b)=>(a.name||"").localeCompare(b.name||"");
@@ -116,10 +116,10 @@ const termTxt=t=>!t||t==="all"?"All terms":"Term "+t;
 const curRows=()=>CUR.subs.filter(x=>(!CF.sy||sYear(x)===CF.sy)&&(!CF.grade||sGrade(x)===CF.grade)
   &&(!CF.term||!x.term||x.term==="all"||String(x.term)===CF.term)&&(!CF.track||!x.track||x.track==="All tracks"||x.track===CF.track));
 const curList=()=>{const r=curRows();return `<div class="muted sm mut" style="margin-bottom:6px">${r.length} of ${CUR.subs.length} subject(s)</div>`+
-  tbl(["Subject","Grade","School year","Type","Term","Track",""],r.map(x=>[esc(x.name),esc(sGrade(x)),esc(sYear(x)||"–"),esc(x.type),termTxt(x.term),esc(x.track),
+  tbl(["Subject","Grade","School year","Type","Term","Track",""],r.map(x=>[esc(x.name)+(x.combo?` ${badge("combined","info")}`:"")+(x.parentId?` <span class="mut sm">↳ part of ${esc(CUR.subs.find(c=>c.id===x.parentId)?.name||"?")}</span>`:""),esc(sGrade(x)),esc(sYear(x)||"–"),esc(x.type),termTxt(x.term),esc(x.track),
     `<div class="row">${btn("editsub","Edit",x.id,"ghost")}${btn("delsub","Delete",x.id,"danger")}</div>`]),"No subjects match these filters.")};
 pages.curriculum=async()=>{
-  CUR.subs=(await list("subjects")).sort(byName);
+  CUR.subs=(await list("subjects")).sort(subjectSort);
   const years=[...new Set([S.set.schoolYear,...CUR.subs.map(sYear)].filter(Boolean))].sort().reverse();
   const sel=(f,id,label,opts)=>`<div><label class="f" for="${id}">${label}</label><select id="${id}" data-c="cf" data-f="${f}"><option value="">All</option>${opts.map(([v,t])=>`<option value="${esc(v)}" ${CF[f]===v?"selected":""}>${esc(t)}</option>`).join("")}</select></div>`;
   return head("SHS Curriculum","Subjects offered",`<button class="btn" data-a="addsub">+ Add subject</button>`)+
@@ -139,11 +139,15 @@ function subDialog(x){
   <div><label class="f" for="d_st">Type</label><select id="d_st">${o([["core","core"],["elective","elective"]],x?.type||"core")}</select></div>
   <div><label class="f" for="d_tm">Term</label><select id="d_tm">${o([["all","All terms"],["1","Term 1"],["2","Term 2"],["3","Term 3"]],x?.term||"all")}</select></div></div>
   <label class="f" for="d_tk">Track</label><select id="d_tk">${o([["All tracks","All tracks"],["Academic","Academic"],["TVL","TVL"]],x?.track||"All tracks")}</select>
+  <div class="g2"><div><label class="f" for="d_kd">Kind</label><select id="d_kd">${o([["regular","Regular subject"],["combined","Combined (average of its parts)"]],x?.combo?"combined":"regular")}</select></div>
+  <div><label class="f" for="d_pa">Part of</label><select id="d_pa"><option value="">None</option>${CUR.subs.filter(c=>c.combo&&(!x||c.id!==x.id)).map(c=>`<option value="${esc(c.id)}" ${x?.parentId===c.id?"selected":""}>${esc(c.name)}</option>`).join("")}</select></div></div>
+  <p class="hint">Combined subject: create it first with no teacher. Then add each part (for example Effective Communication and Mabisang Komunikasyon), set “Part of” to the combined subject, and assign each part to its own teacher.</p>
+  <label class="f" for="d_or">Display order (1 = first, leave blank for the DepEd order)</label><input id="d_or" type="number" min="1" max="99" value="${x?.order??""}" placeholder="Auto">
   <label class="f" for="d_sd">Description</label><textarea id="d_sd" rows="2">${esc(x?.description||"")}</textarea>
   <p class="bad sm" id="d_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">Save</button></div>`;
   return new Promise(res=>{let done=false;const fin=r=>{if(done)return;done=true;d.close();d.remove();res(r)};
     d.addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;if(b.value!=="1")return fin(null);
-      const g=i=>d.querySelector("#d_"+i).value.trim(),r={name:g("sn"),grade:g("gr"),schoolYear:g("sy"),type:g("st"),term:g("tm"),track:g("tk"),description:g("sd")};
+      const g=i=>d.querySelector("#d_"+i).value.trim(),r={name:g("sn"),grade:g("gr"),schoolYear:g("sy"),type:g("st"),term:g("tm"),track:g("tk"),description:g("sd"),order:g("or")?+g("or"):null,combo:g("kd")==="combined",parentId:g("kd")==="combined"?"":g("pa")};
       if(!r.name){d.querySelector("#d_err").textContent="Enter the subject name.";return}fin(r)});
     d.addEventListener("cancel",e=>{e.preventDefault();fin(null)});
     document.body.append(d);d.showModal();d.querySelector("#d_sn").focus()});
