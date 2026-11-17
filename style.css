@@ -566,3 +566,4 @@ body.testing .qc,body.testing .qc *:not(input):not(textarea){-webkit-user-select
 .tgc:hover{filter:brightness(.96);text-decoration:none}
 .linkb{border:0;background:none;font:inherit;color:var(--pri);font-weight:600;cursor:pointer;padding:0;text-align:left;text-decoration:none}
 @media print{.gt td.na{background:#8a8a8a!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+.gt td.sub{padding-left:28px;font-style:italic}
