@@ -1,9 +1,16 @@
 import {firebaseConfig,ADMIN_EMAILS,SCHOOL} from "./firebase-config.js";
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import {getFirestore,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,orderBy,limit,serverTimestamp,writeBatch,getCountFromServer} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {getFirestore,collection,doc,getDoc,getDocs,setDoc as _setDoc,addDoc as _addDoc,updateDoc as _updateDoc,deleteDoc as _deleteDoc,query,queryEqual,where,orderBy,limit,serverTimestamp,writeBatch as _writeBatch,getCountFromServer} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-export {ADMIN_EMAILS,SCHOOL,collection,doc,getDoc,getDocs,setDoc,addDoc,updateDoc,deleteDoc,query,where,orderBy,limit,serverTimestamp,writeBatch};
+export {ADMIN_EMAILS,SCHOOL,collection,doc,getDoc,getDocs,query,where,orderBy,limit,serverTimestamp};
+
+/* ---------- speed: remember recent list() results for 20s (and share requests already in flight).
+   Any save/delete clears the memory, so data never looks stale after you change something. ---------- */
+const CACHE=[],TTL=20000,bust=()=>{CACHE.length=0};
+const wr=f=>async(...a)=>{bust();try{return await f(...a)}finally{bust()}};
+export const setDoc=wr(_setDoc),addDoc=wr(_addDoc),updateDoc=wr(_updateDoc),deleteDoc=wr(_deleteDoc);
+export const writeBatch=d=>{const b=_writeBatch(d),c=b.commit.bind(b);b.commit=wr(c);return b};
 export const app=initializeApp(firebaseConfig),auth=getAuth(app),db=getFirestore(app);
 
 /* shared state + action registries (modules add handlers to act / chg) */
@@ -19,7 +26,16 @@ export const go=p=>{if(location.hash==="#/"+p)refresh();else location.hash="#/"+
 export const refresh=()=>dispatchEvent(new Event("hashchange"));
 
 /* ---------- firestore helpers ---------- */
-export const list=async(c,...q)=>(await getDocs(query(collection(db,c),...q))).docs.map(d=>({id:d.id,...d.data()}));
+export const list=(c,...q)=>{
+  const qq=query(collection(db,c),...q),now=Date.now();
+  let e=CACHE.find(x=>now-x.t<TTL&&queryEqual(x.q,qq));
+  if(!e){
+    e={q:qq,t:now,p:getDocs(qq).then(s=>s.docs.map(d=>({id:d.id,...d.data()})))};
+    CACHE.push(e);if(CACHE.length>60)CACHE.shift();
+    e.p.catch(()=>{const i=CACHE.indexOf(e);if(i>-1)CACHE.splice(i,1)});
+  }
+  return e.p.then(r=>r.map(x=>({...x})));
+};
 export const count=async(c,...q)=>{try{return (await getCountFromServer(query(collection(db,c),...q))).data().count}catch{return 0}};
 export const log=a=>addDoc(collection(db,"logs"),{by:S.me?.email||"",action:a,at:serverTimestamp()}).catch(()=>{});
 export const errMsg=e=>e?.code==="permission-denied"?"Not allowed: you don't have permission for this action. (If this is unexpected, publish the latest firestore.rules.)":e?.code==="unavailable"?"Network problem. Check your connection and try again.":(e?.message||"Something went wrong.");
