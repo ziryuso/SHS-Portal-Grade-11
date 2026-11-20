@@ -1418,12 +1418,42 @@ body.testing .qc *:not(input):not(textarea) {
 /* ==========================================================================
    18. TEACHER: DASHBOARD WIDGETS & CLASSWORK
    ========================================================================== */
-/* customizable dashboard */
-.wgrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.wd { min-width: 0; }
-.wd.full { grid-column: 1 / -1; }
+/* customizable dashboard: 12-column grid, widgets span 12 / 7 / 5 */
+.tdash { max-width: 1080px; margin: 0 auto; }
+.wgrid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; grid-auto-flow: dense; }
+.wd { grid-column: span 12; min-width: 0; }
+.wd.s7 { grid-column: span 7; }
+.wd.s5 { grid-column: span 5; }
 .wd > .card { height: 100%; margin: 0; }
-@media (max-width: 900px) { .wgrid { grid-template-columns: 1fr; } }
+.wd > .card + .card { margin-top: 8px; }
+.wd > h2,
+.wd > .card > h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--mut); }
+@media (max-width: 900px) { .wd.s7, .wd.s5 { grid-column: span 12; } }
+
+/* overview: tiles in one row on wide screens */
+.statgrp { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.statgrp .stat { padding: 10px 12px; border-radius: var(--r); background: var(--th-bg); }
+@media (min-width: 1280px) { .statgrp { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .statgrp { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* class performance, needs grading, empty announcements */
+.pv { font-variant-numeric: tabular-nums; }
+.pv.warn { color: var(--warn); }
+.who { display: flex; align-items: center; gap: 10px; }
+.who > span:last-child { min-width: 0; }
+.av {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--pri);
+  font-size: 12px;
+  font-weight: 700;
+}
+.wd > .annbar { height: auto; display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 14px; }
 
 .wl { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .wr { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 10px; }
