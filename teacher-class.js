@@ -17,11 +17,11 @@ pages.classes = async () => {
     const loads = await myLoads(), ids = loads.map(l => l.id);
     const [acts0, subs, studs] = await Promise.all([ids.length ? list("activities", where("by", "==", S.me.uid)) : [], subsFor(ids), studentsFor(loads.map(l => l.sectionId))]);
     const acts = acts0.filter(a => a.v === 2);
-    return head("My classes", `${loads.length} subject load(s)`) + `<div class="cards">${loads.map(l => {
+    return head("My classes") + `<div class="cards">${loads.map(l => {
         const n = studs.filter(s => s.sectionId === l.sectionId).length, as = acts.filter(a => a.loadId === l.id && !a.draft), ss = subs.filter(s => s.loadId === l.id), avg = mean(ss.filter(counted).map(sp)), comp = pct(ss.length, n * as.length);
         return `<a class="card subj clk" href="#/load/${l.id}" aria-label="Open ${esc(l.sn)}, ${esc(l.sec)}"><span class="chip">${esc(l.sec)}</span><h3>${esc(l.sn)}</h3><div class="mut sm">${n} students · ${as.length} activities</div>
     <div class="row between sm" style="margin-top:8px"><span>Completion</span><b>${comp}%</b></div>${bar(comp)}<div class="row between sm"><span>Class average</span><b>${fm(avg)}</b></div></a>`;
-    }).join("") || `<div class="card">${empty("No subject loads yet. The administrator assigns loads.", "book")}</div>`}</div>`;
+    }).join("") || `<div class="card">${empty("No classes assigned yet.", "book")}</div>`}</div>`;
 };
 /* ---------- one class ---------- */
 async function ctx(id) {
@@ -65,7 +65,7 @@ pages.load = async ([id, tab = "activities", extra]) => {
         return hd + `<div class="card"><div class="row between"><div><h3>${esc(a.title)}</h3><div class="mut sm">${a.topic ? esc(a.topic) + " · " : ""}${a.attempts} attempt(s) allowed</div></div><div class="row"><a class="btn ghost" href="#/load/${id}/activities">← Classwork</a><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div></div>
     <div class="statgrp" style="margin-top:10px">${mini("Completed", cnt("Completed"), "check", "ok")}${mini("Attempted", cnt("Attempted"), "clock", "warn")}${mini("Not started", cnt("Not started"), "users")}</div></div>
     <div class="card">${tbl(["Student", "Status", "Score", "Attempts", "Last submitted", "Tab switches"], rows.map(r => [esc(r.s.name), badge(r.st, tone[r.st]), r.x ? (counted(r.x) ? `<b>${sp(r.x)}%</b>` : "pending") : "–", r.x ? `${r.n}/${a.attempts}` : "–", r.x ? fdate(ts(r.x.at)) : "–", r.x ? (r.x.tabSwitches || 0) : "–"]), "No students in this section yet.", "rec nw")}
-    <p class="hint">Attempted = submitted at least once and still has attempts left. Completed = all attempts used.</p></div>`;
+    <p class="hint">Attempted: attempts left. Completed: all attempts used.</p></div>`;
     }
     /* ranking of students */
     if (tab === "students") {
@@ -74,7 +74,7 @@ pages.load = async ([id, tab = "activities", extra]) => {
         return hd + `<div class="card"><div class="row between"><h3>Student ranking</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
     ${top.length ? `<div class="statgrp" style="margin:6px 0 12px">${top.map(r => `<a class="stat" href="#/load/${id}/student/${r.s.id}"><div class="si">${r.rank}</div><div><div class="sv">${fm(r.av)}</div><div class="sl">${esc(r.s.name)}</div></div></a>`).join("")}</div>` : ""}
     ${tbl(["Student", "Rank", "Average", "Completion", "Turned in", "To grade"], rk.map(r => [`<a href="#/load/${id}/student/${r.s.id}">${esc(r.s.name)}</a>`, r.av == null ? "–" : "#" + r.rank, r.av == null ? "–" : `<b>${r.av}%</b>${r.av < 75 ? " " + badge("Below 75", "warn") : ""}`, r.comp + "%", `${r.n}/${pub.length}`, r.pend || "–"]), "No students in this section yet.", "rec nw")}
-    <p class="hint">Ranked by average of graded scores, then by completion. Missing work is not counted as zero.</p></div>`;
+    <p class="hint">Ranked by average, then completion. Missing work isn't counted as zero.</p></div>`;
     }
     /* one student's report */
     if (tab === "student") {
@@ -95,11 +95,11 @@ pages.load = async ([id, tab = "activities", extra]) => {
         S.tmp = { name: `${c.sn}-${c.secName}-class-record.csv`, rows: [["Student", "LRN", ...cols.map(a => `${a.title} (${a.totalPts})`), "Average %", "Completion %"],
                 ...rows.map(r => [r.s.name, r.s.lrn || "", ...r.mine.map(x => x ? (counted(x) ? sp(x) + "%" : "pending") : ""), r.av ?? "", r.comp])] };
         return hd + `<div class="card"><h3>Activity reports</h3>${tbl(["Activity", "Topic", "Turned in", "% answered", "Class avg", ""], rep.map(r => [esc(r.a.title), esc(r.a.topic || "–"), `${r.n}/${c.studs.length}`, `<div style="min-width:110px"><b>${r.p}%</b>${bar(r.p)}</div>`, fm(r.avg), `<a class="btn sm ghost" href="#/load/${id}/results/${r.a.id}">Students</a>`]), "No activities posted yet.", "rec nw")}
-    <p class="hint">% answered = students who turned in the activity. For per-question results see Item analysis.</p></div>
+    </div>
     <div class="card"><div class="row between"><h3>Scores per student</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
     ${tbl(["Student", ...cols.map(a => esc(a.title)), "Avg", "Done"], [...rows.map(r => [esc(r.s.name), ...r.mine.map(x => x ? (counted(x) ? sp(x) + "%" : `<span class="mut">…</span>`) : `<span class="mut">–</span>`), `<b>${fm(r.av)}</b>`, r.comp + "%"]),
             { c: [`<b>Class average</b>`, ...cols.map(a => `<b>${fm(mean(c.subs.filter(s => s.actId === a.id && counted(s)).map(sp)))}</b>`), `<b>${fm(mean(rows.map(r => r.av).filter(x => x != null)))}</b>`, ""] }], "No students in this section yet.", "rec nw")}
-    <p class="hint">“…” means an essay is waiting to be graded. Averages use graded submissions only.</p></div>`;
+    <p class="hint">“…” = essay waiting to be graded.</p></div>`;
     }
     if (tab === "analysis") {
         const a = c.acts.find(x => x.id === extra) || c.acts[0];
@@ -131,7 +131,7 @@ pages.load = async ([id, tab = "activities", extra]) => {
     const testItem = a => {
         const ss = c.subs.filter(s => s.actId === a.id), tg = ss.filter(s => s.graded === false).length, [sl, sk] = state(a);
         return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl, sk)}${twBadge(a)}${a.release ? " " + badge("Answers released", "ok") : ""}
-    <div class="mut sm">${a.questions.length} items · ${a.totalPts} pts · ${a.attempts} attempt(s)${a.timeLimit ? " · " + a.timeLimit + " min" : ""} · ${a.closes ? "Due " + fdate(a.closes) : "No deadline"}${a.opens && Date.now() < a.opens ? " · Opens " + fdate(a.opens) : ""}</div>
+    <div class="mut sm">${[`${a.questions.length} items`, `${a.totalPts} pts`, `${a.attempts} attempt${a.attempts > 1 ? "s" : ""}`, a.timeLimit ? a.timeLimit + " min" : "", a.closes ? "Due " + fdate(a.closes) : "", a.opens && Date.now() < a.opens ? "Opens " + fdate(a.opens) : ""].filter(Boolean).join(" · ")}</div>
     ${a.draft ? "" : `<div class="sm"><b>${new Set(ss.map(s => s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg ? ` · <a href="#/grade/${a.id}">${badge(tg + " to grade", "warn")}</a>` : ""}</div>`}</div>
     <div class="row">${a.draft ? "" : `<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}${a.hasEssay ? `<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>` : ""}${ED ? `<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${btn("relact", a.release ? "Hide answers" : "Release answers", a.id, "ghost")}${btn("dupact", "Duplicate", a.id, "ghost")}${btn("delact", "Delete", a.id, "danger")}` : ""}</div></div>`;
     };
@@ -149,9 +149,9 @@ pages.load = async ([id, tab = "activities", extra]) => {
         const td = c.topics.find(x => x.name === t), e = esc(t), ex = `data-topic="${e}"`, ed = EDIT.has(t), open = OPEN.has(t);
         ED = ed;
         const an = recent(c.anns.filter(x => x.topic === t)), ma = recent(c.mats.filter(m => m.topic === t)), te = sortT(c.acts.filter(a => a.topic === t));
-        const html = `<div class="card tpc ${open ? "open" : ""}"><div class="tph"><button class="tpt" data-a="t_tog" data-topic="${e}" aria-expanded="${open}"><span class="car" aria-hidden="true">▸</span><span class="tn">${e}</span><span class="mut sm">${an.length} announcement(s) · ${ma.length} material(s) · ${te.length} test(s)</span></button>
+        const html = `<div class="card tpc ${open ? "open" : ""}"><div class="tph"><button class="tpt" data-a="t_tog" data-topic="${e}" aria-expanded="${open}"><span class="car" aria-hidden="true">▸</span><span class="tn">${e}</span><span class="mut sm">${an.length} news · ${ma.length} materials · ${te.length} tests</span></button>
       <button class="btn sm" data-a="t_create" data-id="${id}" ${ex}>+ Create</button></div>
-      <div class="tpb"><div class="row between tpbar"><span class="mut sm">${ed ? "Editing: you can delete items or change their term/week." : ""}</span>
+      <div class="tpb"><div class="row between tpbar"><span class="mut sm">${ed ? "Edit mode" : ""}</span>
       <div class="row">${ed ? `${td ? btn("t_deltopic", "Delete topic", td.id, "ghost", `data-lid="${id}" ${ex}`) : ""}${btn("t_save", "Save", "", "", ex)}` : btn("t_edit", "Edit", "", "ghost", ex)}</div></div>
       ${fold("Announcements", an.length, an.map(annItem))}${fold("Materials", ma.length, ma.map(matItem))}${fold("Tests", te.length, te.map(testItem))}</div></div>`;
         ED = false;
@@ -159,11 +159,11 @@ pages.load = async ([id, tab = "activities", extra]) => {
     };
     const loose = { a: c.acts.filter(a => !a.topic), m: c.mats.filter(m => !m.topic) };
     ED = true;
-    const looseHtml = loose.a.length || loose.m.length ? `<div class="card"><h3>No topic</h3><p class="hint">Older items. Edit a test to move it into a topic.</p>${loose.m.map(matItem).join("")}${sortT(loose.a).map(testItem).join("")}</div>` : "";
+    const looseHtml = loose.a.length || loose.m.length ? `<div class="card"><h3>No topic</h3><p class="hint">Older items. Edit a test to give it a topic.</p>${loose.m.map(matItem).join("")}${sortT(loose.a).map(testItem).join("")}</div>` : "";
     ED = false;
-    return hd + `<div class="row between" style="margin-bottom:10px"><span class="mut sm">${names.length} topic(s) · ${c.acts.filter(a => a.draft).length} draft(s) · newest first</span>${btn("t_addtopic", "+ New topic", id)}</div>` +
+    return hd + `<div class="row between" style="margin-bottom:10px"><span class="mut sm">${names.length} topics · ${c.acts.filter(a => a.draft).length} drafts</span>${btn("t_addtopic", "+ New topic", id)}</div>` +
         (names.map(topicCard).join("") + looseHtml
-            || `<div class="card">${empty("No topics yet. Create a topic first, then add announcements, materials and tests inside it.", "list")}</div>`);
+            || `<div class="card">${empty("No topics yet. Create one to start.", "list")}</div>`);
 };
 /* topic accordion state survives page refreshes; Edit mode is per topic */
 let ED = false;
