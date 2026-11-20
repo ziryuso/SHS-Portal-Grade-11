@@ -2,18 +2,24 @@
  * teacher-editor.js - activity editor: build questions by hand, paste, import from Word; save as draft or publish.
  */
 import {
-    $, S, act, ask, badge, btn, collection, db,
+    $, S, act, ask, collection, db,
     doc, empty, errMsg, esc, fromLocalInput, getDoc, go, head,
-    ic, list, log, newSalt, norm, qMax, serverTimestamp, sha,
+    ic, list, log, newSalt, norm, serverTimestamp, sha,
     shuffle, toLocalInput, toast, ts, v, where, writeBatch
 } from "./core.js";
 import { imgToData, readDocx } from "./docx.js";
 import { curTerm, pages } from "./teacher-shared.js";
+import {
+    EYE_ICON, KINDS, PARTS, PART_ORDER, TYPE_LABEL, bindPreviewToggle, createDraftStore,
+    finishPanelHtml, iconBtn, injectEditorCss, kindPickerHtml, partOf, partRank, qPts,
+    setPreviewOpen, testDoc
+} from "./teacher-editor-ui.js";
 
 act.t_newtest = el => { PRE = el.dataset.topic || ""; location.hash = `#/editor/${el.dataset.id}`; };
 /* ---------- activity editor ---------- */
-let E = null, PRE = "";
-const TYPES = { mc: "Multiple choice", tf: "True / False", id: "Identification", sa: "Short answer", mt: "Matching", es: "Essay (teacher graded)" };
+let E = null, PRE = "", DRAFT = null;
+const TYPES = TYPE_LABEL;
+const isMobile = () => matchMedia("(max-width:1099px)").matches;
 const dkey = lid => "edraft2:" + S.me.uid + ":" + lid;
 function mk(t, p, pts, { o = [], a = "", pairs = [], img = "" }) {
     if (!p)
@@ -58,7 +64,6 @@ function mk(t, p, pts, { o = [], a = "", pairs = [], img = "" }) {
     return q;
 }
 const pairsOf = txt => txt.split(/\n|;/).map(l => { const i = l.indexOf("="); return i < 0 ? ["", ""] : [l.slice(0, i).trim(), l.slice(i + 1).trim()]; });
-const sumQ = q => q.t === "mc" ? q.o.map(o => o === q.a ? `<b class="ok">${esc(o)} ✓</b>` : esc(o)).join(" · ") : q.t === "tf" ? "Answer: " + q.a : q.t === "mt" ? q.pairs.map(p => esc(p[0]) + " → " + esc(p[1])).join(" · ") : q.t === "es" ? "Graded by you" + (q.a ? " · rubric saved" : "") : "Accepted: " + esc(q.a.split("|").join(" / "));
 const imgBox = () => `<div id="qimgbox" class="imgbox">${E.qimg ? `<img class="qimg" src="${E.qimg}" alt=""><button class="btn sm danger" data-a="qimgrm" type="button">Remove picture</button>` : `<label class="btn sm ghost" for="qimgf">${ic("file")} Add picture</label>`}<input id="qimgf" type="file" accept="image/*" hidden></div>`;
 function qform() {
     const q = E.keep || (E.edit >= 0 ? E.qs[E.edit] : {}), t = E.qt;
@@ -75,7 +80,8 @@ function qform() {
         x = `<label class="f" for="qm">Pairs (left=right, one per line)</label><textarea id="qm" rows="4" placeholder="Sine=opposite/hypotenuse&#10;Cosine=adjacent/hypotenuse">${esc((q.pairs || []).map(p => p.join("=")).join("\n"))}</textarea>`;
     else
         x = `<label class="f" for="qa">Model answer / rubric</label><textarea id="qa" rows="3">${esc(q.t === "es" ? q.a || "" : "")}</textarea><p class="hint">Graded by you. Essays allow 1 attempt.</p>`;
-    return `<div class="g2"><div><label class="f" for="qt">Type</label><select id="qt">${Object.entries(TYPES).map(([k, l]) => `<option value="${k}" ${k === t ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+    const allowed = PARTS[E.part]?.types || Object.keys(TYPES), shown = allowed.includes(t) ? allowed : [...allowed, t];
+    return `<div class="g2"><div><label class="f" for="qt">Type</label><select id="qt">${shown.map(k => `<option value="${k}" ${k === t ? "selected" : ""}>${TYPES[k]}</option>`).join("")}</select></div>
   <div><label class="f" for="qpts">Points${t === "mt" ? " (per pair)" : ""}</label><input id="qpts" type="number" min="1" max="100" value="${q.pts || 1}"></div></div>
   <label class="f" for="qp">Question</label><textarea id="qp" rows="2">${esc(q.p || "")}</textarea>${imgBox()}${x}
   <p class="row"><button class="btn" data-a="qadd">${E.edit >= 0 ? "Update question" : "Add question"}</button>${E.edit >= 0 ? `<button class="btn ghost" data-a="qcancel">Cancel edit</button>` : ""}</p>`;
@@ -107,19 +113,64 @@ function readMeta() {
     m.term = +v("m_term") || 1;
     m.week = +v("m_week") || 1;
     m.links = parseLinks($("#m_links").value);
+    m.pdf = $("#m_pdf").checked;
 }
 const parseLinks = t => t.split("\n").map(l => l.trim()).filter(Boolean).map(l => { const m = l.match(/^(.*?)[\s|]*(https?:\/\/\S+)$/); return m ? { t: m[1].trim().slice(0, 80), u: m[2] } : null; }).filter(Boolean).slice(0, 6);
-const persist = () => { if (E.actId)
-    return; try {
-    readMeta();
-    localStorage.setItem(dkey(E.loadId), JSON.stringify({ meta: E.meta, qs: E.qs }));
+/** Autosaves a new draft and refreshes the running preview. */
+function persist(preview = true) {
+    try {
+        readMeta();
+        if (!E.actId) DRAFT?.save({ kind: E.kind, meta: E.meta, qs: E.qs });
+    } catch { /* page not ready yet */ }
+    if (preview) drawPreview();
 }
-catch { } };
+
+function drawPreview() {
+    const box = $("#pvdoc");
+    if (!box) return;
+    box.innerHTML = testDoc(E, { answers: !!$("#pvans")?.checked });
+    const n = $("#pvsum");
+    if (n) n.textContent = `${E.qs.length} item${E.qs.length === 1 ? "" : "s"}`;
+}
+
+function drawParts() {
+    const box = $("#ptabs");
+    if (!box) return;
+    box.innerHTML = E.kind !== "mixed" ? "" : PART_ORDER.map(k =>
+        `<button type="button" class="pt ${E.part === k ? "on" : ""}" data-a="epart" data-id="${k}">${PARTS[k].label}<span class="n">${E.qs.filter(q => partOf(q.t) === k).length}</span></button>`).join("");
+}
+
 function drawList() {
-    const tot = E.qs.reduce((n, q) => n + qMax(q), 0);
-    $("#qlist").innerHTML = `<div class="row between"><h3>Questions (${E.qs.length}) · ${tot} points</h3></div>` + (E.qs.map((q, i) => `<div class="qrow"><div class="txt"><b>${i + 1}.</b> ${badge(TYPES[q.t], "info")} ${badge(qMax(q) + " pt", "mut")}<div>${esc(q.p)}</div>${q.img ? `<img class="qimg thumb" src="${q.img}" alt="">` : ""}<div class="mut sm">${sumQ(q)}</div></div>
-  <div class="acts">${btn("qup", "↑", i, "ghost", i ? "" : "disabled")}${btn("qdown", "↓", i, "ghost", i < E.qs.length - 1 ? "" : "disabled")}${btn("qedit", "Edit", i, "ghost")}${btn("qdup", "Copy", i, "ghost")}${btn("qdel", "Delete", i, "danger")}</div></div>`).join("") || empty("No questions yet. Add them above or import a ready-made test.", "list"));
+    const total = E.qs.reduce((n, q) => n + qPts(q), 0), tot = $("#totpts");
+    if (tot) tot.textContent = `${E.qs.length} item${E.qs.length === 1 ? "" : "s"} · ${total} pts`;
+    let lastPart = "";
+    $("#qlist").innerHTML = E.qs.map((q, i) => {
+        const part = partOf(q.t), pts = qPts(q);
+        const heading = part !== lastPart ? `<div class="ph2">${PARTS[part].label}</div>` : "";
+        lastPart = part;
+        const canUp = i > 0 && partOf(E.qs[i - 1].t) === part;
+        const canDown = i < E.qs.length - 1 && partOf(E.qs[i + 1].t) === part;
+        return heading + `<div class="qi ${E.edit === i ? "sel" : ""}"><span class="nm">${i + 1}</span>`
+            + `<div class="tx">${esc(q.p)}<small>${TYPES[q.t]} · ${pts} pt${pts > 1 ? "s" : ""}${q.img ? " · picture" : ""}</small></div>`
+            + `<div class="ac">${iconBtn("qview", i, "Review in preview", EYE_ICON, { cls: "eye" })}`
+            + `${iconBtn("qup", i, "Move up", "↑", { disabled: !canUp })}${iconBtn("qdown", i, "Move down", "↓", { disabled: !canDown })}`
+            + `${iconBtn("qedit", i, "Edit", "✎")}${iconBtn("qdup", i, "Duplicate", "⧉")}${iconBtn("qdel", i, "Delete", "✕", { cls: "del" })}</div></div>`;
+    }).join("") || empty("No questions yet. Add them above or import a ready-made test.", "list");
 }
+
+/** Shows the kind picker until a kind is chosen, then the builder. */
+function syncKind() {
+    const k = E.kind;
+    $("#kindwrap").hidden = !!k;
+    $("#buildwrap").hidden = !k;
+    $("#kindchip").textContent = k ? KINDS[k].label : "not chosen yet";
+    const canImport = k === "mc" || k === "mixed";
+    $("#segs").hidden = !canImport;
+    if (!canImport && E.tab !== "type") act.etab({ dataset: { id: "type" } });
+    $("#qf").innerHTML = qform();
+    drawParts();
+}
+
 async function loadImg(inp) {
     const f = inp.files[0];
     if (!f)
@@ -137,20 +188,28 @@ async function loadImg(inp) {
     }
 }
 act.qimgrm = () => { E.qimg = ""; $("#qimgbox").outerHTML = imgBox(); };
-const redraw = () => { $("#qf").innerHTML = qform(); drawList(); persist(); };
+const redraw = () => {
+    const editing = E.edit >= 0 ? E.qs[E.edit] : null;
+    E.qs.sort((x, y) => partRank(x.t) - partRank(y.t));   // keep items grouped by part
+    E.edit = editing ? E.qs.indexOf(editing) : -1;
+    $("#qf").innerHTML = qform();
+    drawParts();
+    drawList();
+    persist();
+};
 pages.editor = async ([loadId, actId]) => {
     const ls = await getDoc(doc(db, "loads", loadId));
     if (!ls.exists() || ls.data().teacherUid !== S.me.uid)
         return `<div class="card">${empty("Class not found.")}</div>`;
     const ld = ls.data();
-    E = { loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false }, qs: [], qimg: "", tab: "type" };
+    E = { loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false, pdf: false }, qs: [], qimg: "", tab: "type", kind: null, part: "mc" };
     if (actId) {
         const [as, ks, ss] = await Promise.all([getDoc(doc(db, "activities", actId)), getDoc(doc(db, "keys", actId)), list("submissions", where("actId", "==", actId))]);
         if (!as.exists() || !ks.exists() || as.data().by !== S.me.uid || as.data().v !== 2)
             return `<div class="card">${empty("This activity cannot be edited (it may be from the old version). Create a new one.")}</div>`;
         const a = as.data(), key = ks.data().ans;
         E.subs = ss.length;
-        E.meta = { title: a.title, instr: a.instructions || "", attempts: a.attempts, opens: a.opens || 0, closes: a.closes || 0, timeLimit: a.timeLimit || 0, shuffle: !!a.shuffle, release: !!a.release, topic: a.topic || "", term: a.term || curTerm(), week: a.week || 1, links: a.links || [], draft: !!a.draft };
+        E.meta = { title: a.title, instr: a.instructions || "", attempts: a.attempts, opens: a.opens || 0, closes: a.closes || 0, timeLimit: a.timeLimit || 0, shuffle: !!a.shuffle, release: !!a.release, topic: a.topic || "", term: a.term || curTerm(), week: a.week || 1, links: a.links || [], draft: !!a.draft, pdf: !!a.allowPdf };
         E.qs = a.questions.map((q, i) => {
             const k = key[i], o = { t: q.t, p: q.p, pts: q.pts || 1 };
             if (q.img)
@@ -174,50 +233,77 @@ pages.editor = async ([loadId, actId]) => {
             if (d) {
                 E.meta = { ...E.meta, ...d.meta };
                 E.qs = d.qs || [];
+                E.kind = d.kind || null;
             }
         }
         catch { }
     }
+    if (actId || !KINDS[E.kind]) E.kind = actId || E.qs.length ? "mixed" : null;
+    E.part = E.kind && E.kind !== "mixed" ? KINDS[E.kind].parts[0] : partOf(E.qs[0]?.t || "mc");
+    E.qt = PARTS[E.part].types[0];
+    injectEditorCss();
     if (PRE && !actId)
         E.meta.topic = PRE;
     PRE = "";
     const m = E.meta;
     S.after = () => {
         const root = $("#ed");
-        root.addEventListener("input", persist);
+        DRAFT = createDraftStore(dkey(loadId), $("#savestat"));
+        if (E.actId) $("#savestat").textContent = "Editing a saved activity";
+        root.addEventListener("input", ev => persist(!ev.target.closest("#qf")));
         root.addEventListener("change", ev => {
-            if (ev.target.id === "qt") {
+            const id = ev.target.id;
+            if (id === "qt") {
                 E.keep = { p: v("qp"), pts: +v("qpts") || 1, img: E.qimg };
                 E.qt = ev.target.value;
                 $("#qf").innerHTML = qform();
             }
-            if (ev.target.id === "qimgf")
-                return loadImg(ev.target);
-            if (ev.target.id === "docf")
-                return importDoc(ev.target);
+            if (id === "qimgf") return loadImg(ev.target);
+            if (id === "docf") return importDoc(ev.target);
+            if (id === "pvans") return drawPreview();
             persist();
         });
+        bindPreviewToggle(root);
+        syncKind();
         drawList();
-        $("#qf").innerHTML = qform();
+        drawPreview();
     };
-    const mv = (id, l, inner) => `<div><label class="f" for="${id}">${l}</label>${inner}</div>`;
+    const mv = (id, l, inner, cls = "") => `<div class="${cls}"><label class="f" for="${id}">${l}</label>${inner}</div>`;
     const [tp, ac] = await Promise.all([list("topics", where("loadId", "==", loadId)).catch(() => []), list("activities", where("loadId", "==", loadId))]);
     const topics = [...tp.sort((x, y) => ts(x.at) - ts(y.at)).map(t => t.name), ...[...new Set(ac.map(a => a.topic).filter(Boolean))].filter(n => !tp.some(t => t.name === n)).sort()];
     if (m.topic && !topics.includes(m.topic))
         topics.push(m.topic);
     const pane = (k, l) => `<button type="button" id="tab_${k}" class="seg ${E.tab === k ? "on" : ""}" data-a="etab" data-id="${k}">${l}</button>`;
-    return head(actId ? "Edit activity" : "Create activity", "", `<a class="btn ghost" href="#/load/${loadId}/activities">← Back</a>`) + `<div id="ed">
-  ${actId && E.subs ? `<div class="card" style="border-color:#d97706"><b>${E.subs} student(s) already submitted.</b><p class="mut sm">Recorded scores are not recalculated if you change questions or answers.</p></div>` : ""}
-  <div class="card"><h3>Details</h3>
-  ${mv("m_title", "Title", `<input id="m_title" value="${esc(m.title)}" placeholder="e.g. Quiz 1 – Trigonometric Ratios">`)}
-  <div class="g2">${mv("m_topic", "Topic", `<select id="m_topic"><option value="" disabled ${m.topic ? "" : "selected"}>Select topic</option>${topics.map(t => `<option ${t === m.topic ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${topics.length ? "" : `<p class="hint"><a href="#/load/${loadId}/activities">Create a topic</a> first.</p>`}`)}
-  ${mv("m_att", "Attempts", `<select id="m_att">${[1, 2, 3].map(n => `<option ${m.attempts == n ? "selected" : ""}>${n}</option>`).join("")}</select>`)}</div>
-  <div class="g2">${mv("m_term", "Term", `<select id="m_term">${[1, 2, 3].map(n => `<option value="${n}" ${m.term == n ? "selected" : ""}>Term ${n}</option>`).join("")}</select>`)}
-  ${mv("m_week", "Week", `<select id="m_week">${Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}" ${m.week == i + 1 ? "selected" : ""}>Week ${i + 1}</option>`).join("")}</select>`)}</div>
+    const step = (n, title, extra = "") => `<h3><span class="step">${n}</span>${title}${extra}</h3>`;
+    const saveBtns = actId && !m.draft
+        ? `<button class="btn ghost" data-a="esave" data-draft="1">Move to drafts</button><button class="btn" data-a="esave" data-draft="0">Save changes</button>`
+        : `<button class="btn ghost" data-a="esave" data-draft="1">Save draft</button><button class="btn" data-a="esave" data-draft="0">Publish</button>`;
+    return head(actId ? "Edit activity" : "Create activity", "", `<a class="btn ghost" href="#/load/${loadId}/activities">← Back</a>`) + `<div id="ed" class="ed">
+  <div class="ed-main">
+  ${actId && E.subs ? `<div class="ed-card" style="border-color:#d97706"><b>${E.subs} student(s) already submitted.</b><p class="mut sm">Recorded scores are not recalculated if you change questions or answers.</p></div>` : ""}
+  <div class="ed-quick"><span class="etop">Test kind: <b id="kindchip"></b> <button type="button" class="btn sm ghost" data-a="changekind">Change</button></span><span class="sp"></span><span id="totpts" class="etop"></span><span id="savestat" class="save-ind"></span></div>
+
+  <section class="ed-card t-setup">${step(1, "Test setup")}
+  <div class="egrid">
+  ${mv("m_title", "Title", `<input id="m_title" value="${esc(m.title)}" placeholder="e.g. Quiz 1 – Trigonometric Ratios">`, "full")}
+  ${mv("m_topic", "Topic", `<select id="m_topic"><option value="" disabled ${m.topic ? "" : "selected"}>Select topic</option>${topics.map(t => `<option ${t === m.topic ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>${topics.length ? "" : `<p class="hint"><a href="#/load/${loadId}/activities">Create a topic</a> first.</p>`}`)}
+  ${mv("m_term", "Term", `<select id="m_term">${[1, 2, 3].map(n => `<option value="${n}" ${m.term == n ? "selected" : ""}>Term ${n}</option>`).join("")}</select>`)}
+  ${mv("m_week", "Week", `<select id="m_week">${Array.from({ length: 20 }, (_, i) => `<option value="${i + 1}" ${m.week == i + 1 ? "selected" : ""}>Week ${i + 1}</option>`).join("")}</select>`)}
+  ${mv("m_att", "Attempts", `<select id="m_att">${[1, 2, 3].map(n => `<option ${m.attempts == n ? "selected" : ""}>${n}</option>`).join("")}</select>`)}
+  ${mv("m_time", "Time limit (min, 0 = none)", `<input id="m_time" type="number" min="0" max="300" value="${m.timeLimit}">`)}
+  ${mv("m_open", "Opens", `<input id="m_open" type="datetime-local" value="${toLocalInput(m.opens)}">`)}
+  ${mv("m_close", "Due", `<input id="m_close" type="datetime-local" value="${toLocalInput(m.closes)}">`)}</div>
+  <div class="eflags"><label class="f inline"><input type="checkbox" id="m_shuf" ${m.shuffle ? "checked" : ""}> Shuffle questions and choices</label>
+  <label class="f inline"><input type="checkbox" id="m_rel" ${m.release ? "checked" : ""}> Show correct answers after submit</label></div>
+  <details class="more" ${m.instr || (m.links || []).length ? "open" : ""}><summary>Instructions and attached files</summary>
   <label class="f" for="m_instr">Instructions</label><textarea id="m_instr" rows="2">${esc(m.instr)}</textarea>
-  <label class="f" for="m_links">Attached files <span class="mut">(Title link, one per line)</span></label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links || []).map(l => (l.t ? l.t + " " : "") + l.u).join("\n"))}</textarea></div>
-  <div class="card"><h3>Questions</h3>
-  <div class="segs">${pane("type", "Type")}${pane("word", "Word file")}${pane("paste", "Paste")}</div>
+  <label class="f" for="m_links">Attached files <span class="mut">(Title link, one per line)</span></label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links || []).map(l => (l.t ? l.t + " " : "") + l.u).join("\n"))}</textarea></details></section>
+
+  <section class="ed-card t-build" id="kindwrap">${step(2, "What kind of test are you making?")}<p class="hint">Pick one to start. The builder adapts to it, and you can change it later.</p>${kindPickerHtml(ic)}</section>
+
+  <section class="ed-card t-build" id="buildwrap" hidden>${step(2, "Build the test")}
+  <div id="ptabs" class="ptabs"></div>
+  <div id="segs" class="segs">${pane("type", "Type")}${pane("word", "Word file")}${pane("paste", "Paste")}</div>
   <div id="pane_type" ${E.tab === "type" ? "" : "hidden"}><div id="qf"></div></div>
   <div id="pane_word" ${E.tab === "word" ? "" : "hidden"}>
     <p class="hint">Use a <b>.docx</b>: number questions (1. 2. 3.), label choices A–D, and mark the correct one in <b>bold</b>, underline, <code>*</code>, an <code>Answer: B</code> line, or an <code>Answer key:</code> list. Pictures are kept.</p>
@@ -230,14 +316,24 @@ pages.editor = async ([loadId, actId]) => {
     <p><button class="btn" data-a="qmcimport">Add questions</button></p>
     <details class="alt"><summary>Other question types (one line each)</summary><p class="hint"><code>type|question|options|answer|points</code> — types: mc, tf, id, sa, mt, es. Separate options and alternatives with <code>;</code>. Matching: <code>left=right;left=right</code>.</p>
     <textarea id="bulk" rows="4" aria-label="One-line questions" placeholder="mc|Capital of the Philippines?|Manila;Cebu;Davao|Manila&#10;tf|The sum of angles in a triangle is 180°.||True&#10;id|Largest ocean?||Pacific;Pacific Ocean"></textarea><p><button class="btn ghost" data-a="qimport">Import lines</button></p></details></div>
-  <div id="qlist" style="margin-top:14px"></div></div>
-  <div class="card"><h3>Settings</h3><div class="g2">
-  ${mv("m_open", "Opens", `<input id="m_open" type="datetime-local" value="${toLocalInput(m.opens)}">`)}
-  ${mv("m_close", "Due", `<input id="m_close" type="datetime-local" value="${toLocalInput(m.closes)}">`)}
-  ${mv("m_time", "Time limit (minutes, 0 = none)", `<input id="m_time" type="number" min="0" max="300" value="${m.timeLimit}">`)}</div>
-  <label class="f inline"><input type="checkbox" id="m_shuf" ${m.shuffle ? "checked" : ""}> Shuffle questions and choices</label>
-  <label class="f inline"><input type="checkbox" id="m_rel" ${m.release ? "checked" : ""}> Show correct answers after submit</label></div>
-  <div class="sticky-save">${actId && !m.draft ? `<button class="btn ghost" data-a="esave" data-draft="1">Move to drafts</button><button class="btn" data-a="esave" data-draft="0">Save changes</button>` : `<button class="btn ghost" data-a="esave" data-draft="1">Save draft</button><button class="btn" data-a="esave" data-draft="0">Publish</button>`}</div></div>`;
+  </section>
+
+  <section class="ed-card t-items">${step(3, "Test items", `<span class="sp"></span>`)}<div id="qlist"></div></section>
+
+  <section class="ed-card t-fin">${step(4, "Finish")}
+  ${finishPanelHtml({ pdf: m.pdf })}
+  <div class="efoot"><span class="sp"></span>${saveBtns}</div></section>
+  </div>
+
+  <aside class="pv" aria-label="Live preview of the test">
+    <button type="button" class="pv-head">${ic("file")}<span>Live preview</span><span class="sp"></span><small id="pvsum"></small></button>
+    <div class="pv-body">
+      <div class="pv-tools"><label><input type="checkbox" id="pvans"> Show answers</label><span class="sp"></span><button type="button" class="btn sm ghost" data-a="eprint">Print / PDF</button></div>
+      <div class="pv-scroll"><div id="pvdoc"></div></div>
+    </div>
+  </aside>
+  <button type="button" class="pv-fab">${ic("file")} Preview</button>
+  <div class="pv-back"></div></div>`;
 };
 act.qadd = () => { try {
     const q = readQ();
@@ -255,19 +351,71 @@ catch (e) {
     toast(e.message, "bad");
 } };
 act.qcancel = () => { E.edit = -1; redraw(); };
-act.qedit = el => { E.edit = +el.dataset.id; E.qt = E.qs[E.edit].t; E.keep = null; $("#qf").innerHTML = qform(); $("#qf").scrollIntoView({ behavior: "smooth" }); };
+act.qedit = el => {
+    E.edit = +el.dataset.id;
+    E.qt = E.qs[E.edit].t;
+    E.part = partOf(E.qt);
+    E.keep = null;
+    if (E.tab !== "type") act.etab({ dataset: { id: "type" } });
+    $("#qf").innerHTML = qform();
+    drawParts();
+    drawList();
+    $("#qf").scrollIntoView({ behavior: "smooth" });
+};
+act.pvitem = el => { if (isMobile()) setPreviewOpen($("#ed"), false); act.qedit(el); };
+act.qview = el => {
+    setPreviewOpen($("#ed"), true);
+    const node = $(`#pvdoc [data-qi="${+el.dataset.id}"]`);
+    if (!node) return;
+    node.scrollIntoView({ behavior: "smooth", block: "center" });
+    node.classList.remove("flash");
+    void node.offsetWidth;
+    node.classList.add("flash");
+};
+act.pickkind = el => {
+    E.kind = el.dataset.kind;
+    E.part = KINDS[E.kind].parts[0];
+    E.qt = PARTS[E.part].types[0];
+    E.keep = null;
+    syncKind();
+    persist();
+};
+act.changekind = () => { E.kind = null; syncKind(); };
+act.epart = el => {
+    E.keep = { p: v("qp"), pts: +v("qpts") || 1, img: E.qimg };
+    E.part = el.dataset.id;
+    E.qt = PARTS[E.part].types[0];
+    E.edit = -1;
+    $("#qf").innerHTML = qform();
+    drawParts();
+    drawList();
+};
+act.eprint = () => {
+    readMeta();
+    let root = $("#print-root");
+    if (!root) {
+        root = document.createElement("div");
+        root.id = "print-root";
+        document.body.append(root);
+    }
+    root.innerHTML = testDoc(E, { sheet: true, answers: !!$("#pvans")?.checked });
+    document.body.classList.add("pp");
+    const done = () => { document.body.classList.remove("pp"); removeEventListener("afterprint", done); };
+    addEventListener("afterprint", done);
+    print();
+};
 act.qdel = async (el) => { if (await ask("Delete this question?", "Delete", true)) {
     E.qs.splice(+el.dataset.id, 1);
     E.edit = -1;
     redraw();
 } };
 act.qdup = el => { const i = +el.dataset.id; E.qs.splice(i + 1, 0, structuredClone(E.qs[i])); redraw(); };
-act.qup = el => { const i = +el.dataset.id; if (i > 0) {
+act.qup = el => { const i = +el.dataset.id; if (i > 0 && partOf(E.qs[i - 1].t) === partOf(E.qs[i].t)) {
     [E.qs[i - 1], E.qs[i]] = [E.qs[i], E.qs[i - 1]];
     E.edit = -1;
     redraw();
 } };
-act.qdown = el => { const i = +el.dataset.id; if (i < E.qs.length - 1) {
+act.qdown = el => { const i = +el.dataset.id; if (i < E.qs.length - 1 && partOf(E.qs[i + 1].t) === partOf(E.qs[i].t)) {
     [E.qs[i + 1], E.qs[i]] = [E.qs[i], E.qs[i + 1]];
     E.edit = -1;
     redraw();
@@ -445,8 +593,8 @@ act.esave = async (el) => {
                 ans[i] = q.a || "";
             questions.push(b);
         }
-        const hasEssay = E.qs.some(q => q.t === "es"), autoTotal = E.qs.filter(q => q.t !== "es").reduce((n, q) => n + qMax(q), 0), manualMax = E.qs.filter(q => q.t === "es").reduce((n, q) => n + qMax(q), 0);
-        const data = { v: 2, loadId: E.loadId, sectionId: E.sectionId, title: m.title, instructions: m.instr, attempts: hasEssay ? 1 : m.attempts, opens: m.opens, closes: m.closes, timeLimit: m.timeLimit, shuffle: m.shuffle, release: m.release, topic: m.topic, term: m.term, week: m.week, links: m.links, draft,
+        const hasEssay = E.qs.some(q => q.t === "es"), autoTotal = E.qs.filter(q => q.t !== "es").reduce((n, q) => n + qPts(q), 0), manualMax = E.qs.filter(q => q.t === "es").reduce((n, q) => n + qPts(q), 0);
+        const data = { v: 2, loadId: E.loadId, sectionId: E.sectionId, title: m.title, instructions: m.instr, attempts: hasEssay ? 1 : m.attempts, opens: m.opens, closes: m.closes, timeLimit: m.timeLimit, shuffle: m.shuffle, release: m.release, topic: m.topic, term: m.term, week: m.week, links: m.links, allowPdf: !!m.pdf, draft,
             questions, salt, totalPts: autoTotal + manualMax, autoTotal, manualMax, hasEssay, updatedAt: serverTimestamp() };
         if (JSON.stringify(data).length > 900000)
             throw new Error("This activity has too many or too large pictures. Remove a few pictures or use smaller ones.");
@@ -458,6 +606,7 @@ act.esave = async (el) => {
         b.set(doc(db, "keys", ref.id), { by: S.me.uid, loadId: E.loadId, sectionId: E.sectionId, ans });
         await b.commit();
         try {
+            DRAFT?.clear();
             localStorage.removeItem(dkey(E.loadId));
         }
         catch { }
