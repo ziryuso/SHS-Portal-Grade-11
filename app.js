@@ -106,8 +106,8 @@ function buildShell() {
 }
 
 function markNav(name) {
-  $$("[data-k]").forEach(a => {
-    const on = a.dataset.k === name || a.dataset.m.split(",").includes(name);
+  $$("nav a[data-k]").forEach(a => {   // menu links only (page tabs also use data-k)
+    const on = a.dataset.k === name || (a.dataset.m || "").split(",").includes(name);
     a.classList.toggle("on", on);
     if (on) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
   });
