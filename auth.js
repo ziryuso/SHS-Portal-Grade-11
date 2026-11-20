@@ -33,7 +33,7 @@ act.copylink=async()=>{try{await navigator.clipboard.writeText(location.origin+l
 const quiet=e=>e?.code==="auth/popup-closed-by-user"||e?.code==="auth/cancelled-popup-request";
 
 export async function loginView(){
-  let secs=[];try{secs=(await list("sections")).sort((a,b)=>a.name.localeCompare(b.name))}catch{}
+  let secs=[];
   const note=inApp?`<div class="note big"><b>You are inside Messenger/Facebook.</b> Google sign-in is blocked in this window.<br>${isAndroid?`Tap <b>Open in Chrome</b> to continue the normal way.`:`Tap the <b>•••</b> menu (or the Safari icon) and choose <b>Open in Browser / Open in Safari</b>, or copy the link and paste it in your browser.`}<div class="row" style="margin-top:8px">${isAndroid?`<button type="button" class="btn sm" data-a="openext">Open in Chrome</button>`:""}<button type="button" class="btn sm ghost" data-a="copylink">Copy link</button></div><div class="hint">You can also sign in or register right here with email and password.</div></div>`:"";
   $("#app").innerHTML=wrap(`<div id="p_in">
     <div class="ac-h">Sign in to start your session</div>
@@ -56,6 +56,8 @@ export async function loginView(){
   </div>`,"acard");
   if(inApp&&isAndroid&&!sessionStorage.getItem("portal:ext")){sessionStorage.setItem("portal:ext","1");setTimeout(()=>{location.href=chromeUrl()},400)}
   $("#pw")?.addEventListener("keydown",e=>{if(e.key==="Enter")$("[data-a=emlogin]")?.click()});
+  /* sections load in the background so the sign-in form appears instantly */
+  list("sections").then(r=>{const sel=$("#sec");if(!sel||!r.length)return;sel.innerHTML=secOpts(r.sort((a,b)=>a.name.localeCompare(b.name)))}).catch(()=>{});
 }
 act.authtab=el=>{const up=el.dataset.id==="up";$("#p_in").style.display=up?"none":"";$("#p_up").style.display=up?"":"none"};
 chg.role=el=>{$("#stuf").style.display=el.value==="student"?"":"none"};
