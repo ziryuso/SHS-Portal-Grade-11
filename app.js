@@ -15,6 +15,7 @@ import {openProf, tryClose, profOpen} from "./profile.js";
 const ROLES = {student, teacher, admin};
 const TITLE = `<span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span>`;
 const SKELETON = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
+const PAGE_TIMEOUT = 25_000;   // never leave the loading placeholder on screen forever
 let booted = false;
 let renderToken = 0;
 
@@ -113,7 +114,7 @@ function markNav(name) {
 }
 
 /* ---------- router ---------- */
-const errorCard = e => `<div class="card"><h3>Something went wrong</h3><p>${esc(errMsg(e))}</p><p><button class="btn" data-a="reload">Reload</button> <a class="btn ghost" href="#/home">Dashboard</a></p></div>`;
+const errorCard = e => `<div class="card"><h3>Something went wrong</h3><p>${esc(errMsg(e))}</p><p><button class="btn" data-a="retry">Try again</button> <button class="btn ghost" data-a="reload">Reload</button> <a class="btn ghost" href="#/home">Dashboard</a></p></div>`;
 
 async function render() {
   if (!S.me || S.me.status !== "approved" || !$("#main")) return;
@@ -130,7 +131,10 @@ async function render() {
   setLoading(true);
 
   try {
-    const html = await pages[name](parts.slice(1));
+    const html = await Promise.race([
+      pages[name](parts.slice(1)),
+      new Promise((_, reject) => setTimeout(() => reject(Object.assign(new Error("This page is taking too long to load. Check your connection and try again."), {code: "unavailable"})), PAGE_TIMEOUT))
+    ]);
     if (token !== renderToken) return;
     main.innerHTML = html;
     scrollTo(0, 0);
@@ -166,6 +170,7 @@ document.addEventListener("change", e => {
 });
 
 /* ---------- floating profile card: open from the header, close via same button / outside click / Esc ---------- */
+act.retry = () => render();
 act.pmenu = () => (profOpen() ? tryClose() : openProf());
 const isInsideProfile = e => e.composedPath().some(n => n instanceof Element && n.matches("#pprof,.chipu,dialog.modal"));
 document.addEventListener("click", e => { if (profOpen() && !isInsideProfile(e)) tryClose(); });
