@@ -9,6 +9,18 @@ import {openProf,tryClose,profOpen} from "./profile.js";
 const roles={student,teacher,admin};
 let booted=false,tok=0;
 
+/* loading feedback: top progress bar + busy buttons */
+document.head.insertAdjacentHTML("beforeend",`<style>
+html.loading body::before{content:"";position:fixed;top:0;left:0;height:3px;width:35%;background:#1d4ed8;z-index:9999;animation:ldbar 1s ease-in-out infinite}
+@keyframes ldbar{0%{left:-35%}100%{left:100%}}
+[data-a].is-busy,[data-c].is-busy{opacity:.55;pointer-events:none;cursor:progress}
+button.is-busy::after{content:"";display:inline-block;width:.9em;height:.9em;margin-left:.5em;vertical-align:-.1em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spn .7s linear infinite}
+@keyframes spn{to{transform:rotate(360deg)}}
+</style>`);
+const loading=on=>document.documentElement.classList.toggle("loading",on);
+/* show something right away while Firebase checks the login */
+$("#app").innerHTML=`<div class="skel" style="max-width:420px;margin:60px auto"></div>`;
+
 /* ---------- auth ---------- */
 onAuthStateChanged(auth,async u=>{
   if(!u){S.me=null;return loginView()}
@@ -30,9 +42,12 @@ onAuthStateChanged(auth,async u=>{
 });
 
 async function boot(){
-  try{const s=await getDoc(doc(db,"settings","school"));if(s.exists())S.set={schoolYear:s.data().schoolYear||"",term:s.data().term||""}}catch{}
-  if(S.me.role==="teacher")try{S.advSecs=await list("sections",where("adviserUid","==",S.me.uid))}catch{S.advSecs=[]}
-  if(S.me.role==="student")try{S.secName=(await getDoc(doc(db,"sections",S.me.sectionId))).data()?.name||""}catch{S.secName=""}
+  /* these three lookups don't depend on each other, so run them together */
+  await Promise.all([
+    getDoc(doc(db,"settings","school")).then(s=>{if(s.exists())S.set={schoolYear:s.data().schoolYear||"",term:s.data().term||""}}).catch(()=>{}),
+    S.me.role==="teacher"?list("sections",where("adviserUid","==",S.me.uid)).then(r=>{S.advSecs=r}).catch(()=>{S.advSecs=[]}):null,
+    S.me.role==="student"?getDoc(doc(db,"sections",S.me.sectionId)).then(r=>{S.secName=r.data()?.name||""}).catch(()=>{S.secName=""}):null
+  ]);
   document.body.classList.toggle("is-student",S.me.role==="student");
   buildShell();
   if(!booted){booted=true;addEventListener("hashchange",render)}
@@ -64,13 +79,14 @@ async function render(){
   const name=R.pages[parts[0]]?parts[0]:"home";
   markNav(name);
   const main=$("#main");main.innerHTML=`<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
+  loading(true);
   try{
     const html=await R.pages[name](parts.slice(1));
-    if(my!==tok)return;
+    if(my!==tok)return;loading(false);
     main.innerHTML=html;scrollTo(0,0);S.after?.();
     document.title=(name==="home"?"Dashboard":name[0].toUpperCase()+name.slice(1))+" · TTVHS SHS Portal";main.focus({preventScroll:true});
   }catch(e){
-    if(my!==tok)return;console.error(e);
+    if(my!==tok)return;loading(false);console.error(e);
     main.innerHTML=`<div class="card"><h3>Something went wrong</h3><p>${esc(errMsg(e))}</p><p><button class="btn" data-a="reload">Reload</button> <a class="btn ghost" href="#/home">Dashboard</a></p></div>`;
   }
 }
@@ -80,7 +96,7 @@ document.addEventListener("click",async e=>{
   const el=e.target.closest("[data-a]");if(!el)return;
   const f=act[el.dataset.a];if(!f)return;
   e.preventDefault();if(el.dataset.busy)return;
-  try{el.dataset.busy="1";await f(el,e)}catch(err){console.error(err);toast(errMsg(err),"bad")}finally{delete el.dataset.busy}
+  try{el.dataset.busy="1";el.classList.add("is-busy");await f(el,e)}catch(err){console.error(err);toast(errMsg(err),"bad")}finally{delete el.dataset.busy;el.classList.remove("is-busy")}
 });
 document.addEventListener("change",e=>{const el=e.target.closest("[data-c]");if(el&&chg[el.dataset.c])chg[el.dataset.c](el,e)});
 
