@@ -19,7 +19,7 @@ pages.grade = async ([id]) => {
     subs.sort((x, y) => (x.graded === false ? 0 : 1) - (y.graded === false ? 0 : 1));
     return head("Grade: " + a.title, `${subs.length} submission(s)`, `<a class="btn ghost" href="#/load/${a.loadId}/activities">← Back</a>`) +
         (ess.length ? subs.map(s => `<div class="card" data-sub="${s.id}"><div class="row between"><b>${esc(studs.find(u => u.id === s.uid)?.name || s.alias || "Student")}</b>${s.graded === false ? badge("Needs grading", "warn") : badge("Graded: " + (s.manualTotal || 0) + "/" + a.manualMax, "ok")}</div>
-    <p class="mut sm">Auto-scored part: ${s.best}/${a.autoTotal} · switched tabs ${s.tabSwitches || 0} time(s)</p>
+    <p class="mut sm">Auto-scored: ${s.best}/${a.autoTotal} · Tab switches: ${s.tabSwitches || 0}</p>
     ${ess.map(({ q, i }) => `<div class="item" style="align-items:flex-start"><div style="flex:1;min-width:240px"><b>${i + 1}. ${esc(q.p)}</b>${q.img ? `<img class="qimg thumb" src="${q.img}" alt="">` : ""}<p style="white-space:pre-wrap">${esc(s.answers?.[i] || "(blank)")}</p>${key[i] ? `<div class="mut sm">Rubric: ${esc(key[i])}</div>` : ""}</div>
     <div style="width:120px"><label class="f" for="g_${s.id}_${i}">Points / ${qMax(q)}</label><input id="g_${s.id}_${i}" type="number" min="0" max="${qMax(q)}" step="0.5" value="${s.manual?.[i] ?? ""}"></div></div>`).join("")}
     <p><button class="btn" data-a="savegrade" data-id="${s.id}" data-act="${id}">Save grade</button></p></div>`).join("") || `<div class="card">${empty("No submissions yet.")}</div>` : `<div class="card">${empty("This activity has no essay items.")}</div>`);
@@ -49,7 +49,7 @@ const refreshGrade = id => go("grade/" + id);
 /* ---------- advisory ---------- */
 pages.advisory = async ([sid]) => {
     if (!S.advSecs.length)
-        return `<div class="card">${empty("You are not an adviser. The administrator assigns advisers.", "users")}</div>`;
+        return `<div class="card">${empty("No advisory section assigned.", "users")}</div>`;
     const sec = S.advSecs.find(s => s.id === sid) || S.advSecs[0];
     const [users, loads, subjects, subs] = await Promise.all([list("users", where("sectionId", "==", sec.id)), list("loads", where("sectionId", "==", sec.id)), list("subjects"), list("submissions", where("sectionId", "==", sec.id))]);
     const studs = users.filter(u => u.role === "student"), pending = studs.filter(u => u.status === "pending"), ok = studs.filter(u => u.status === "approved").sort(byName);
@@ -62,7 +62,7 @@ pages.advisory = async ([sid]) => {
         `<div class="card"><h3>Pending student approvals</h3>${tbl(["Name", "LRN", "Email", ""], pending.map(x => [esc(x.name), esc(x.lrn || "–"), esc(x.email), btn("apvstu", "Approve", x.id, "ok")]), "No pending students.")}</div>
   ${await consolidated(sec, ok)}<div class="card"><div class="row between"><h3>Activity averages</h3><button class="btn ghost" data-a="csvrec">${ic("file")} Export CSV</button></div>
   ${tbl(["Student", ...cols.map(c => esc(c.n)), "General avg"], rows.map(r => [esc(r.s.name), ...r.vals.map(fm), `<b>${fm(r.gen)}</b>`]), "No approved students yet.", "rec nw")}
-  <p class="hint">Averages use each student's best graded score per activity. Missing work is not counted as zero.</p></div>`;
+  <p class="hint">Best graded score per activity. Missing work isn't counted as zero.</p></div>`;
 };
 act.apvstu = async (el) => { await updateDoc(doc(db, "users", el.dataset.id), { status: "approved" }); log("approved student " + el.dataset.id); toast("Student approved."); refresh(); };
-pages.announcements = async () => head("Announcements", "From the school administration") + await annHtml(30);
+pages.announcements = async () => head("Announcements") + await annHtml(30);
