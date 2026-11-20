@@ -6,6 +6,7 @@ import {
     errMsg, esc, fdate, getDoc, go, ic, mmss, pct,
     qMax, serverTimestamp, setDoc, sha, shuffle, toast
 } from "./core.js";
+import { injectEditorCss, testDoc } from "./teacher-editor-ui.js";
 import { dropDraft, getDraft, linksHtml, pages, putDraft, status } from "./student-shared.js";
 
 /* ---------- take an activity ---------- */
@@ -92,6 +93,20 @@ pages.take = async ([id]) => {
             $$(".qc")[i]?.scrollIntoView({ behavior: "smooth", block: "center" }); };
         act.qmode = () => { const one = root.classList.toggle("one"); localStorage.setItem("runMode", one ? "one" : "all"); $("#qpn").style.display = one ? "flex" : "none"; $("#qmode").textContent = one ? "Show all questions" : "One question at a time"; show(RUN.cur); };
         act.runSubmit = () => submitRun(a, dr, false);
+        act.runPdf = () => {   // printable, answer-free copy; only offered when the teacher allowed it
+            injectEditorCss();
+            let sheet = $("#print-root");
+            if (!sheet) {
+                sheet = document.createElement("div");
+                sheet.id = "print-root";
+                document.body.append(sheet);
+            }
+            sheet.innerHTML = testDoc({ meta: { title: a.title, instr: a.instructions || "", topic: a.topic || "", term: a.term || 1, week: a.week || 1, timeLimit: a.timeLimit || 0, attempts: a.attempts || 1 }, qs: a.questions }, { sheet: true });
+            document.body.classList.add("pp");
+            const done = () => { document.body.classList.remove("pp"); removeEventListener("afterprint", done); };
+            addEventListener("afterprint", done);
+            print();
+        };
         show(0);
         upd();
         if (isFinite(dl())) {
@@ -155,7 +170,7 @@ pages.take = async ([id]) => {
         };
     };
     return `<div class="card runhead"><div class="row between"><div><b>${esc(a.title)}</b><div class="mut sm">${total} items · ${a.totalPts} points${a.shuffle ? " · shuffled" : ""}</div></div>
-  <div class="row">${isFinite(dl()) ? `<span class="timer" id="tmw">${ic("clock")}<span id="tm">--:--</span></span>` : ""}<button class="btn" id="sbtn" data-a="runSubmit">Submit</button></div></div>
+  <div class="row">${isFinite(dl()) ? `<span class="timer" id="tmw">${ic("clock")}<span id="tm">--:--</span></span>` : ""}${a.allowPdf ? `<button class="btn ghost" data-a="runPdf">${ic("file")} PDF</button>` : ""}<button class="btn" id="sbtn" data-a="runSubmit">Submit</button></div></div>
   <div class="bar"><i id="pgb" style="width:0"></i></div><div class="row between sm"><span id="pgt"></span><button class="btn ghost sm" id="qmode" data-a="qmode">${mode === "one" ? "Show all questions" : "One question at a time"}</button></div>
   <div class="qnav">${dr.ord.map((qi, pos) => `<button class="chipq" data-q="${qi}" data-a="qjump" data-i="${pos}" aria-label="Go to question ${pos + 1}">${pos + 1}</button>`).join("")}</div></div>
   ${a.instructions || (a.links || []).length ? `<div class="card"><b>Instructions</b>${a.instructions ? `<p style="white-space:pre-wrap">${esc(a.instructions)}</p>` : ""}${linksHtml(a)}</div>` : ""}
