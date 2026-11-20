@@ -159,8 +159,8 @@ p  { margin: .4em 0; }
 
 #main {
   width: 100%;
-  max-width: none;
-  margin: 0;
+  max-width: 1220px;
+  margin: 0 auto;
   padding: 14px clamp(12px, 2.5vw, 28px) 84px;
 }
 
