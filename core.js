@@ -8,7 +8,7 @@ import {firebaseConfig, ADMIN_EMAILS, SCHOOL} from "./firebase-config.js";
 import {initializeApp} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import {getAuth} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {
-  getFirestore, collection, doc, getDoc, getDocs, query, queryEqual, where, orderBy, limit,
+  initializeFirestore, collection, doc, getDoc, getDocs, query, queryEqual, where, orderBy, limit,
   serverTimestamp, getCountFromServer,
   setDoc as _setDoc, addDoc as _addDoc, updateDoc as _updateDoc, deleteDoc as _deleteDoc, writeBatch as _writeBatch
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
@@ -18,7 +18,8 @@ export {ADMIN_EMAILS, SCHOOL, collection, doc, getDoc, getDocs, query, where, or
 /* ============ 1. Firebase ============ */
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+/* Auto-detect long-polling: fixes requests that hang on school/proxy networks where WebSockets stall. */
+export const db = initializeFirestore(app, {experimentalAutoDetectLongPolling: true});
 
 /* ============ 2. Shared state + action registries ============
    Page modules register click handlers in `act` (data-a) and change handlers in `chg` (data-c). */
@@ -40,6 +41,17 @@ export const go = path => (location.hash === "#/" + path ? refresh() : (location
 /* ============ 4. Firestore helpers ============
    list() results are kept for 20s and in-flight requests are shared.
    Every write clears the cache, so data never looks stale after a change. */
+const QUERY_TIMEOUT = 8_000;   // a stalled request is abandoned after 8s and retried once
+
+const timeout = (promise, ms) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(Object.assign(new Error("Taking too long. Check your connection and try again."), {code: "unavailable"})), ms);
+  promise.then(r => { clearTimeout(timer); resolve(r); }, e => { clearTimeout(timer); reject(e); });
+});
+const fetchDocs = async q => {
+  try { return await timeout(getDocs(q), QUERY_TIMEOUT); }
+  catch (e) { if (e.code !== "unavailable") throw e; return timeout(getDocs(q), QUERY_TIMEOUT); }
+};
+
 const CACHE = [];
 const CACHE_TTL = 20_000;
 const CACHE_MAX = 60;
@@ -60,7 +72,7 @@ export const list = (name, ...constraints) => {
   const q = query(collection(db, name), ...constraints), now = Date.now();
   let hit = CACHE.find(e => now - e.t < CACHE_TTL && queryEqual(e.q, q));
   if (!hit) {
-    hit = {q, t: now, p: getDocs(q).then(s => s.docs.map(d => ({id: d.id, ...d.data()})))};
+    hit = {q, t: now, p: fetchDocs(q).then(s => s.docs.map(d => ({id: d.id, ...d.data()})))};
     CACHE.push(hit);
     if (CACHE.length > CACHE_MAX) CACHE.shift();
     hit.p.catch(() => { const i = CACHE.indexOf(hit); if (i > -1) CACHE.splice(i, 1); });
