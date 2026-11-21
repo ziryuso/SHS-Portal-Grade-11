@@ -126,7 +126,7 @@ const leds = TIERS.map(([y0, y1, hw], ti) => {
 
 const gift = (x, y, w, h, a, b, rib) => `<ellipse cx="${x + w / 2}" cy="${y + h}" rx="${w * .62}" ry="3" fill="#000" opacity=".22"/><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#${a})"/><rect x="${x + w * .42}" y="${y}" width="${w * .16}" height="${h}" fill="${rib}"/><rect x="${x}" y="${y + h * .4}" width="${w}" height="${h * .16}" fill="${rib}"/><path d="M${x + w / 2} ${y}c-8-9-14-3-9 1zM${x + w / 2} ${y}c8-9 14-3 9 1z" fill="${rib}" stroke="#0003" stroke-width=".6"/>`;
 
-const TREES = encodeURIComponent(
+const treesSvg = flip => encodeURIComponent(
     `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 340 300">
 <style>.b{animation:t 1.3s ease-in-out infinite alternate}.d1{animation-delay:.35s}.d2{animation-delay:.7s}.d3{animation-delay:1s}@keyframes t{0%{opacity:.3}100%{opacity:1}}</style>
 <defs>${GRAD}
@@ -140,11 +140,14 @@ ${parolDefs("pt", "#d32f2f", "#ff8a80", "#7f0000")}
 <g id="tr"><rect x="91" y="270" width="18" height="28" fill="url(#tk)"/>${tiers}${garland}${BALLS.map(a => ball(...a)).join("")}${leds}
 <g transform="translate(100 38) scale(.64) translate(-50 -48)"><circle cx="50" cy="48" r="58" fill="url(#halo)" class="b d1"/>${parolBody("pt", "#f9a825")}</g></g>
 </defs>
+<g${flip ? ' transform="matrix(-1 0 0 1 340 0)"' : ""}>
 <ellipse cx="100" cy="296" rx="110" ry="6" fill="#000" opacity=".18"/>
 <use href="#tr" xlink:href="#tr"/>
 <use href="#tr" xlink:href="#tr" transform="translate(212 132) scale(.55)"/>
 ${gift(150, 268, 30, 26, "gA", "", "#ffd54f")}${gift(184, 276, 24, 18, "gB", "", "#fff3b0")}${gift(14, 274, 26, 20, "gC", "", "#ffd54f")}${gift(300, 278, 26, 16, "gA", "", "#fff3b0")}
+</g>
 </svg>`);
+const TREES = treesSvg(false), TREES_R = treesSvg(true);
 
 const CSS = `
 /* ---------- always available: the on/off switch row ---------- */
@@ -160,6 +163,7 @@ html.xmas{
   --bg:#fbf5e6;
   --tw:clamp(220px,27vw,380px);
   --trees:url("data:image/svg+xml,${TREES}");
+  --trees-r:url("data:image/svg+xml,${TREES_R}");
   background:var(--bg) url("data:image/svg+xml,${TILE}") fixed;
 }
 html.xmas body{background:transparent}
@@ -190,6 +194,8 @@ html.xmas .side .brand::before{content:"";position:absolute;left:8px;top:-10px;z
 
 /* login: warm bokeh over the school photo + Filipino greeting */
 html.xmas .auth1{background:
+  var(--trees) left 1vw bottom/var(--tw) auto no-repeat fixed,
+  var(--trees-r) right 1vw bottom/var(--tw) auto no-repeat fixed,
   radial-gradient(circle at 16% 20%,rgba(255,214,102,.42),transparent 6%),
   radial-gradient(circle at 27% 66%,rgba(255,90,90,.30),transparent 5%),
   radial-gradient(circle at 36% 12%,rgba(120,180,255,.28),transparent 5%),
@@ -201,22 +207,17 @@ html.xmas .auth1{background:
   radial-gradient(circle at 12% 8%,rgba(198,40,40,.16),transparent 42%),
   radial-gradient(circle at 88% 92%,rgba(249,168,37,.22),transparent 44%),
   url("login-bg.jpg") center bottom/cover no-repeat fixed,var(--bg)}
-html.xmas .authw::before{content:"Maligayang Pasko from TTVHS \\1F31F";display:block;margin-bottom:8px;text-align:center;font-weight:700;color:var(--pri);text-shadow:0 0 12px rgba(249,168,37,.6)}
+html.xmas .authw::before{content:"Maligayang Pasko from TTVHS \\1F31F";display:block;position:relative;z-index:70;width:fit-content;max-width:92%;
+  margin:84px auto 12px;padding:5px 16px;border-radius:99px;text-align:center;font-weight:700;color:var(--pri);
+  background:rgba(255,255,255,.92);box-shadow:0 2px 12px rgba(198,40,40,.22),0 0 0 1px rgba(249,168,37,.5)}
 html.xmas .acard{box-shadow:0 12px 40px rgba(198,40,40,.18),0 0 0 1px rgba(249,168,37,.4)}
 html.xmas .acard::before{background:repeating-linear-gradient(90deg,#c62828 0 20px,#f9a825 20px 40px,#2e7d32 40px 60px,#1565c0 60px 80px)}
 
-/* login: two pine trees with parol toppers on each side + two strings of glass lights */
-html.xmas .auth1::before,html.xmas .auth1::after{content:"";position:fixed;bottom:0;z-index:1;pointer-events:none;
-  width:var(--tw);height:calc(var(--tw)*.882);
-  background:var(--trees) center bottom/contain no-repeat;
-  filter:drop-shadow(0 0 14px rgba(255,213,79,.35))}
-html.xmas .auth1::before{left:1vw}
-html.xmas .auth1::after{right:1vw;transform:scaleX(-1)}
+/* login: two strings of glass lights under the bunting (the trees are background layers of .auth1 above) */
 html.xmas:has(.auth1) body::before{height:84px;
   background:url("data:image/svg+xml,${BUNTING}") 0 0/160px 26px repeat-x,
              url("data:image/svg+xml,${LIGHTS_A}") 0 18px/120px 56px repeat-x,
              url("data:image/svg+xml,${LIGHTS_B}") 60px 30px/120px 56px repeat-x}
-@media(max-width:900px){html.xmas .auth1::before,html.xmas .auth1::after{display:none}}
 
 /* two parols hang from the bunting and sway gently */
 html.xmas::before,html.xmas::after{content:"";position:fixed;top:20px;z-index:55;pointer-events:none;
@@ -225,12 +226,23 @@ html.xmas::before,html.xmas::after{content:"";position:fixed;top:20px;z-index:55
 html.xmas::before{right:210px;width:46px;height:61px;background:url("data:image/svg+xml,${PAROL_RED}") center/contain no-repeat}
 html.xmas::after{right:150px;width:38px;height:50px;animation-delay:-1.8s;background:url("data:image/svg+xml,${PAROL_GOLD}") center/contain no-repeat}
 @keyframes xm-sway{0%{transform:rotate(-7deg)}100%{transform:rotate(7deg)}}
-@media(max-width:900px){html.xmas::before{right:92px;width:36px;height:48px}html.xmas::after{display:none}}
+/* ---------- phones and small tablets ---------- */
+@media(max-width:900px){
+  html.xmas{--tw:clamp(120px,38vw,260px)}
+  /* hanging parols and the top bunting would cover the app header: keep the bunting for the login page only */
+  html.xmas::before,html.xmas::after{display:none}
+  html.xmas body::before{display:none}
+  html.xmas:has(.auth1) body::before{display:block;height:58px;
+    background:url("data:image/svg+xml,${BUNTING}") 0 0/112px 18px repeat-x,
+               url("data:image/svg+xml,${LIGHTS_A}") 0 12px/84px 39px repeat-x}
+  html.xmas .authw::before{font-size:14px;margin-top:66px}
+  html.xmas body::after{background-size:200px 170px,260px 230px,230px 200px,290px 260px}
+}
 
 /* never distract during a test, and keep prints clean */
 html.xmas body.testing::after,html.xmas body.testing::before,html.xmas:has(body.testing)::after,html.xmas:has(body.testing)::before{display:none}
-@media print{html.xmas body::after,html.xmas body::before,html.xmas::after,html.xmas::before,html.xmas .auth1::before,html.xmas .auth1::after{display:none}html.xmas{background:#fff}}
-@media (prefers-reduced-motion:reduce){html.xmas body::after,html.xmas::after,html.xmas::before,html.xmas .side .brand::before{animation:none}html.xmas .auth1::before,html.xmas .auth1::after{filter:none}}
+@media print{html.xmas body::after,html.xmas body::before,html.xmas::after,html.xmas::before{display:none}html.xmas{background:#fff}}
+@media (prefers-reduced-motion:reduce){html.xmas body::after,html.xmas::after,html.xmas::before,html.xmas .side .brand::before{animation:none}}
 `;
 
 const style = document.createElement("style");
