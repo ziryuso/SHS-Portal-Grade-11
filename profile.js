@@ -1,11 +1,13 @@
 /**
  * profile.js - profile photo/bio: the plain profile page and the floating profile card (all roles).
  */
+import {isXmas, setXmas} from "./xmas.js";
 import {S, act, chg, $, esc, db, doc, updateDoc, toast, errMsg, ask, head, tbl, avatar, refreshAvatars, refresh} from "./core.js";
 
 const BIO_MAX = 150;
 const THUMB_SIZE = 192;
 const roleLabel = r => (r ? r[0].toUpperCase() + r.slice(1) : "");
+const xmasRow = () => `<label class="pp-xm"><span>\u{1F384} Christmas theme</span><input type="checkbox" role="switch" data-c="xmas" aria-label="Christmas theme" ${isXmas() ? "checked" : ""}></label>`;
 const saveUser = fields => updateDoc(doc(db, "users", S.me.uid), fields);
 
 /** Crops the chosen picture to a small centred square JPEG data-URL (stored inside the user's profile). */
@@ -36,6 +38,7 @@ export const photoCard = () => `<div class="card row" style="gap:14px">${avatar(
   <div style="flex:1;min-width:180px"><b>${esc(S.me.name)}</b><div class="mut sm">${esc(S.me.email)}</div>
     ${S.me.bio ? `<p class="sm">${esc(S.me.bio)}</p>` : ""}
     <div class="row" style="margin-top:8px"><button class="btn sm" data-a="pickphoto">${S.me.photo ? "Change photo" : "Upload photo"}</button>${S.me.photo ? `<button class="btn sm ghost" data-a="rmphoto">Remove</button>` : ""}</div>
+    ${xmasRow()}
     <input type="file" id="photoin" accept="image/*" data-c="photo" hidden>
   </div></div>`;
 
@@ -47,6 +50,7 @@ const applyPhoto = async (photo, message) => {
   refresh();
 };
 
+chg.xmas = el => { setXmas(el.checked); toast(el.checked ? "Christmas theme is on. Merry Christmas! \u{1F384}" : "Christmas theme is off."); };
 act.pickphoto = () => $("#photoin").click();
 act.rmphoto = () => applyPhoto("", "Photo removed.");
 chg.photo = async el => {
@@ -72,7 +76,7 @@ const topRow = m => `<div class="pp-top">${avatar(m, "xl")}<div class="pp-i"><b>
 export const profDirty = () => !!(P.edit && P.pd && (P.pd.photo !== (S.me.photo || "") || P.pd.bio !== (S.me.bio || "")));
 
 const viewHtml = m => `${topRow(m)}
-  <p class="pp-bio ${m.bio ? "" : "mut"}">${m.bio ? esc(m.bio) : "No bio yet. Tap Edit to add one."}</p>${infoList(m)}
+  <p class="pp-bio ${m.bio ? "" : "mut"}">${m.bio ? esc(m.bio) : "No bio yet. Tap Edit to add one."}</p>${infoList(m)}${xmasRow()}
   <div class="pp-act"><button class="btn sm" data-a="pedit">Edit profile</button><button class="btn sm ghost" data-a="out">Log out</button></div>`;
 
 const editHtml = (m, d) => `${topRow({...m, photo: d.photo})}
