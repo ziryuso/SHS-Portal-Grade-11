@@ -8,7 +8,6 @@
  * - Decorations: swaying parol (star lanterns), twinkling "Christmas lights" string,
  *   golden sparkles, a mini parol on the school logo and a "Maligayang Pasko" greeting on login.
  * - Everything decorative is hidden while a test is running and when printing.
- * - Optional Pasko music player (bottom-left): plays the audio files listed in TRACKS below.
  */
 const KEY = "ttvhs-xmas";
 const ROOT = document.documentElement;
@@ -18,7 +17,6 @@ export const isXmas = () => { try { return localStorage.getItem(KEY) === "1"; } 
 export function setXmas(on) {
     try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* private mode: still works for this visit */ }
     ROOT.classList.toggle("xmas", !!on);
-    musicTheme(!!on);
 }
 
 /* A parol: 5-point star lantern with an inner glowing star and tassels. c1 = outer colour, c2 = inner glow colour */
@@ -132,124 +130,10 @@ html.xmas body.testing::after,html.xmas body.testing::before,html.xmas:has(body.
 }
 `;
 
-const MUSIC_CSS = `
-#xm-music{display:none;position:fixed;left:12px;bottom:12px;z-index:70;align-items:center;gap:4px;padding:5px 6px 5px 10px;max-width:min(300px,calc(100vw - 24px));
-  background:#fffbf0;border:2px solid #f9a825;border-radius:99px;box-shadow:0 4px 14px rgba(0,0,0,.18);font:600 13px/1.2 system-ui,sans-serif;color:#7a1f1f}
-html.xmas #xm-music{display:flex}
-#xm-music .xm-t{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;max-width:170px;padding-right:4px}
-#xm-music button{flex:none;width:34px;height:34px;min-height:0;padding:0;border:0;border-radius:50%;background:#c62828;color:#fff;font-size:16px;line-height:1;cursor:pointer}
-#xm-music button:hover{background:#a61e1e}
-#xm-music.on .xm-ic{animation:xm-bob .9s ease-in-out infinite alternate}
-@keyframes xm-bob{to{transform:translateY(-2px) rotate(-8deg)}}
-@media(max-width:640px){#xm-music{bottom:76px}#xm-music .xm-t{max-width:110px}}
-body.testing #xm-music{display:none!important}
-@media print{#xm-music{display:none!important}}
-@media (prefers-reduced-motion:reduce){#xm-music.on .xm-ic{animation:none}}
-`;
-
 const style = document.createElement("style");
 style.id = "xmas-theme";
-style.textContent = CSS + MUSIC_CSS;
+style.textContent = CSS;
 document.head.append(style);
 
 /* apply immediately so the login page already shows it */
 ROOT.classList.toggle("xmas", isXmas());
-
-
-/* ============ Pasko music player ============
-   Put your audio or video files (.mp3/.mp4, only the sound plays) in an "audio" folder next to index.html and list them here.
-   Browsers block sound until the user taps/clicks once, so music starts after the first interaction. */
-const MUSIC_KEY = "ttvhs-xmas-music";
-const TRACKS = [
-    {title: "Star ng Pasko", src: "audio/ABS-CBN Christmas Station ID - STAR NG PASKO - LYRICS (SALAMAT SA LIWANAG MO) (1).mp4"}
-];
-
-let audio = null, idx = 0, fails = 0, box = null, gestureArmed = false;
-const musicWanted = () => { try { return localStorage.getItem(MUSIC_KEY) === "1"; } catch { return false; } };
-const saveMusic = on => { try { localStorage.setItem(MUSIC_KEY, on ? "1" : "0"); } catch { /* ignore */ } };
-const testing = () => document.body.classList.contains("testing");
-const playing = () => !!audio && !audio.paused;
-
-function musicUi() {
-    if (!box) return;
-    box.classList.toggle("on", playing());
-    box.querySelector(".xm-t").textContent = fails >= TRACKS.length ? "Add audio files" : TRACKS[idx].title;
-    const b = box.querySelector("[data-m=toggle]");
-    b.textContent = playing() ? "\u23F8" : "\u25B6";
-    b.setAttribute("aria-label", playing() ? "Pause Christmas music" : "Play Christmas music");
-}
-
-function loadTrack(i) {
-    idx = (i + TRACKS.length) % TRACKS.length;
-    audio.src = encodeURI(TRACKS[idx].src);   // handles spaces and ( ) in file names
-}
-
-function getAudio() {
-    if (audio) return audio;
-    audio = new Audio();
-    audio.preload = "none";
-    audio.volume = 0.5;
-    audio.addEventListener("play", musicUi);
-    audio.addEventListener("pause", musicUi);
-    audio.addEventListener("playing", () => { fails = 0; musicUi(); });
-    audio.addEventListener("ended", () => { loadTrack(idx + 1); startMusic(); });
-    audio.addEventListener("error", () => {      // missing/broken file: skip it, stop if every file fails
-        fails++;
-        if (fails < TRACKS.length) { loadTrack(idx + 1); startMusic(); } else musicUi();
-    });
-    loadTrack(0);
-    return audio;
-}
-
-async function startMusic() {
-    if (!TRACKS.length || testing() || !ROOT.classList.contains("xmas")) return;
-    getAudio();
-    try { await audio.play(); saveMusic(true); }
-    catch { armGesture(); }                      // autoplay blocked: wait for the first tap
-    musicUi();
-}
-
-function stopMusic(remember) {
-    audio?.pause();
-    if (remember) saveMusic(false);
-    musicUi();
-}
-
-function armGesture() {
-    if (gestureArmed) return;
-    gestureArmed = true;
-    const go = () => { gestureArmed = false; removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); if (musicWanted()) startMusic(); };
-    addEventListener("pointerdown", go, true);
-    addEventListener("keydown", go, true);
-}
-
-/** called by setXmas(): theme on -> resume music if the user had it on; theme off -> pause (keeps the preference) */
-function musicTheme(on) {
-    if (on) { if (musicWanted()) startMusic(); } else stopMusic(false);
-}
-
-function initMusic() {
-    if (!TRACKS.length) return;
-    box = document.createElement("div");
-    box.id = "xm-music";
-    box.setAttribute("role", "group");
-    box.setAttribute("aria-label", "Christmas music");
-    box.innerHTML = `<span class="xm-ic" aria-hidden="true">\u{1F3B6}</span><span class="xm-t"></span>` +
-        `<button type="button" data-m="toggle"></button><button type="button" data-m="next" aria-label="Next song">\u23ED</button>`;
-    box.addEventListener("click", e => {
-        const m = e.target.closest("button")?.dataset.m;
-        if (m === "toggle") { fails = 0; if (playing()) stopMusic(true); else { saveMusic(true); startMusic(); } }
-        if (m === "next") { getAudio(); fails = 0; loadTrack(idx + 1); saveMusic(true); startMusic(); }
-    });
-    document.body.append(box);
-    musicUi();
-
-    /* pause while a test runs, resume afterwards */
-    new MutationObserver(() => {
-        if (testing()) audio?.pause();
-        else if (ROOT.classList.contains("xmas") && musicWanted() && audio && audio.paused) startMusic();
-    }).observe(document.body, {attributes: true, attributeFilter: ["class"]});
-
-    if (isXmas() && musicWanted()) startMusic();
-}
-initMusic();
