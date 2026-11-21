@@ -5,6 +5,7 @@ import {
   auth, db, S, act, chg, $, $$, esc, avatar, doc, getDoc, setDoc, list, where,
   serverTimestamp, toast, errMsg, ic, ADMIN_EMAILS
 } from "./core.js";
+import "./xmas.js";
 import {onAuthStateChanged} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import {loginView, registerView, waitView, errorView, autoRegister, verifyView} from "./auth.js";
 import * as student from "./student.js";
