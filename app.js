@@ -14,20 +14,12 @@ import {openProf, tryClose, profOpen} from "./profile.js";
 
 const ROLES = {student, teacher, admin};
 const TITLE = `<span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span>`;
-const SKELETON = `<div class="skel"></div><div class="skel"></div><div class="skel"></div>`;
+const SKELETON = `<div class="sk-page" aria-hidden="true"><div class="skel sk-title"></div><div class="sk-grid"><div class="skel"></div><div class="skel"></div><div class="skel"></div><div class="skel"></div></div><div class="skel sk-block"></div><div class="skel sk-block"></div></div>`;
 const PAGE_TIMEOUT = 25_000;   // never leave the loading placeholder on screen forever
 let booted = false;
 let renderToken = 0;
 
-/* ---------- loading feedback (top bar + busy buttons) ---------- */
-document.head.insertAdjacentHTML("beforeend", `<style>
-html.loading body::before{content:"";position:fixed;top:0;left:0;height:3px;width:35%;background:#1d4ed8;z-index:9999;animation:ldbar 1s ease-in-out infinite}
-@keyframes ldbar{0%{left:-35%}100%{left:100%}}
-[data-a].is-busy,[data-c].is-busy{opacity:.55;pointer-events:none;cursor:progress}
-button.is-busy::after{content:"";display:inline-block;width:.9em;height:.9em;margin-left:.5em;vertical-align:-.1em;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spn .7s linear infinite}
-@keyframes spn{to{transform:rotate(360deg)}}
-</style>`);
-const setLoading = on => document.documentElement.classList.toggle("loading", on);
+/* ---------- loading feedback: skeleton placeholders + shimmering busy buttons (styles live in style.css) ---------- */
 $("#app").innerHTML = `<div class="skel" style="max-width:420px;margin:60px auto"></div>`;
 
 /* ---------- auth gate ---------- */
@@ -128,7 +120,7 @@ async function render() {
   const main = $("#main");
   markNav(name);
   main.innerHTML = SKELETON;
-  setLoading(true);
+  main.setAttribute("aria-busy", "true");
 
   try {
     const html = await Promise.race([
@@ -146,7 +138,7 @@ async function render() {
     console.error(e);
     main.innerHTML = errorCard(e);
   } finally {
-    if (token === renderToken) setLoading(false);
+    if (token === renderToken) main.removeAttribute("aria-busy");
   }
 }
 
