@@ -7,7 +7,7 @@ import {S, act, chg, $, esc, db, doc, updateDoc, toast, errMsg, ask, head, tbl, 
 const BIO_MAX = 150;
 const THUMB_SIZE = 192;
 const roleLabel = r => (r ? r[0].toUpperCase() + r.slice(1) : "");
-const xmasRow = () => `<label class="pp-xm"><span>\u{1F384} Christmas theme</span><input type="checkbox" role="switch" data-c="xmas" aria-label="Christmas theme" ${isXmas() ? "checked" : ""}></label>`;
+const xmasRow = () => `<label class="pp-xm"><span>\u{1F31F} Paskong Pinoy theme</span><input type="checkbox" role="switch" data-c="xmas" aria-label="Philippine Christmas theme" ${isXmas() ? "checked" : ""}></label>`;
 const saveUser = fields => updateDoc(doc(db, "users", S.me.uid), fields);
 
 /** Crops the chosen picture to a small centred square JPEG data-URL (stored inside the user's profile). */
@@ -50,7 +50,7 @@ const applyPhoto = async (photo, message) => {
   refresh();
 };
 
-chg.xmas = el => { setXmas(el.checked); toast(el.checked ? "Christmas theme is on. Merry Christmas! \u{1F384}" : "Christmas theme is off."); };
+chg.xmas = el => { setXmas(el.checked); toast(el.checked ? "Paskong Pinoy theme is on. Maligayang Pasko! \u{1F31F}" : "Paskong Pinoy theme is off."); };
 act.pickphoto = () => $("#photoin").click();
 act.rmphoto = () => applyPhoto("", "Photo removed.");
 chg.photo = async el => {
