@@ -1,12 +1,13 @@
 /**
- * xmas.js - optional Christmas theme for the whole portal (login, admin, teacher, student).
+ * xmas.js - optional Philippine Christmas theme for the whole portal (login, admin, teacher, student).
  *
  * - Turned on/off from the profile card (top-right avatar) or the Profile page.
  * - The choice is remembered on this device, so the login page shows it too.
  * - Only colours + decoration change: the 60-30-10 layout stays the same
- *   (60% warm snow background, 30% white cards/sidebar, 10% Christmas red accent).
- * - Santa's sleigh flies across the screen every so often.
- * - Snow, garland and Santa are hidden while a test is running and when printing.
+ *   (60% warm cream background, 30% white cards/sidebar, 10% parol red accent).
+ * - Decorations: swaying parol (star lanterns), twinkling "Christmas lights" string,
+ *   golden sparkles, a mini parol on the school logo and a "Maligayang Pasko" greeting on login.
+ * - Everything decorative is hidden while a test is running and when printing.
  */
 const KEY = "ttvhs-xmas";
 const ROOT = document.documentElement;
@@ -18,48 +19,46 @@ export function setXmas(on) {
     ROOT.classList.toggle("xmas", !!on);
 }
 
-/* faint snowflakes + berries tile for the page background */
-const TILE = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
-<g stroke="#c8d3e4" stroke-width="1.4" stroke-linecap="round" fill="none">
-<path d="M26 14v24M14 26h24M17.5 17.5l17 17M34.5 17.5l-17 17"/>
-<path d="M112 96v18M103 105h18M105.6 98.6l12.8 12.8M118.4 98.6l-12.8 12.8"/>
+/* A parol: 5-point star lantern with an inner glowing star and tassels. c1 = outer colour, c2 = inner glow colour */
+const parol = (c1, c2, c3) => encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 160">
+<path d="M50 0V26" stroke="#8d6e63" stroke-width="2"/>
+<g stroke="${c3}" stroke-width="3" stroke-linecap="round" fill="none">
+<path d="M75.9 105.6L84 148M24.1 105.6L16 148M50 89V152"/>
 </g>
-<circle cx="118" cy="30" r="3.2" fill="#e8b4b4"/><circle cx="124" cy="34" r="3.2" fill="#e8b4b4"/>
-<path d="M112 30c4-8 10-8 12-2" stroke="#b9d3bd" stroke-width="2" fill="none" stroke-linecap="round"/>
-<circle cx="40" cy="118" r="2.6" fill="#b9d3bd"/><circle cx="46" cy="122" r="2.6" fill="#e8b4b4"/>
+<g fill="${c3}"><circle cx="84" cy="150" r="4"/><circle cx="16" cy="150" r="4"/><circle cx="50" cy="154" r="4.5"/></g>
+<polygon points="50,26 61.2,54.6 91.8,56.4 68.1,75.9 75.9,105.6 50,89 24.1,105.6 31.9,75.9 8.2,56.4 38.8,54.6" fill="${c1}" stroke="${c3}" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="50,26 61.2,54.6 91.8,56.4 68.1,75.9 75.9,105.6 50,89 24.1,105.6 31.9,75.9 8.2,56.4 38.8,54.6" fill="${c2}" transform="translate(50 70) scale(.55) translate(-50 -70)"/>
+<circle cx="50" cy="70" r="7" fill="#fff" opacity=".85"/>
+<circle cx="50" cy="22" r="4" fill="${c3}"/>
 </svg>`);
 
-/* little Santa hat for the school logo */
-const HAT = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 32"><path d="M4 26C6 10 16 2 30 4c-6 4-8 10-8 16z" fill="#c62828"/><path d="M2 24c6 4 22 6 34 0l1 6C26 34 10 33 1 30z" fill="#fff" stroke="#e5e7eb"/><circle cx="31" cy="5" r="4.2" fill="#fff" stroke="#e5e7eb"/></svg>`);
+const PAROL_RED = parol("#e53935", "#ffd54f", "#f9a825");
+const PAROL_BLUE = parol("#1e66c9", "#ffee58", "#f9a825");
+const PAROL_GOLD = parol("#f9a825", "#fff59d", "#c62828");
 
+/* faint capiz-diamond + star tile for the page background */
+const TILE = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160">
+<g fill="none" stroke="#e6d3a3" stroke-width="1.4" stroke-linejoin="round">
+<path d="M40 14l26 26-26 26-26-26z"/><path d="M120 94l26 26-26 26-26-26z"/>
+</g>
+<polygon points="124,18 127,27 136,27 129,32 132,41 124,36 116,41 119,32 112,27 121,27" fill="#f3dc9a"/>
+<polygon points="40,104 42,110 48,110 43,114 45,120 40,116 35,120 37,114 32,110 38,110" fill="#f3dc9a"/>
+<circle cx="80" cy="80" r="2" fill="#efc7c7"/><circle cx="12" cy="150" r="2" fill="#bcd6c0"/><circle cx="150" cy="10" r="2" fill="#bcd6c0"/>
+</svg>`);
 
-/* Santa's sleigh with two reindeer, flying to the right */
-const SANTA = encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 110">
-<defs><g id="r">
-<path d="M52 62l6 20M46 64l-4 20M20 62l-8 18M14 60l-10 14" stroke="#6d4c2a" stroke-width="4" stroke-linecap="round"/>
-<ellipse cx="32" cy="58" rx="25" ry="12" fill="#8b5a2b"/>
-<path d="M54 52l12-10" stroke="#8b5a2b" stroke-width="9" stroke-linecap="round"/>
-<circle cx="68" cy="40" r="9" fill="#8b5a2b"/><ellipse cx="76" cy="44" rx="6" ry="4.5" fill="#a9743b"/>
-<circle cx="81" cy="43" r="3.4" fill="#e53935"/><circle cx="70" cy="37" r="1.5" fill="#222"/>
-<path d="M64 32l-4-12M60 20l-5-3M60 20l1-7M70 31l3-12M73 19l5-3M73 19l-1-7" stroke="#5d4037" stroke-width="2.2" fill="none" stroke-linecap="round"/>
-<path d="M8 54c-4 0-6 2-6 5" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
-<path d="M48 50q8 4 14-2" stroke="#d4a017" stroke-width="2" fill="none"/>
-</g></defs>
-<path d="M110 66L150 62M190 62L214 60" stroke="#d4a017" stroke-width="1.6"/>
-<use href="#r" x="118" y="2"/><use href="#r" x="186" y="-2"/>
-<path d="M6 46c2 24 12 38 30 38h66c5 0 8-4 5-9l-7-24z" fill="#c62828"/>
-<path d="M6 46c2 4 8 6 14 6" stroke="#8e1b1b" stroke-width="2" fill="none"/>
-<path d="M4 94h98c10 0 16-6 13-15" stroke="#d4a017" stroke-width="4" fill="none" stroke-linecap="round"/>
-<path d="M22 86v8M60 86v8M92 86v8" stroke="#d4a017" stroke-width="3"/>
-<ellipse cx="22" cy="46" rx="14" ry="15" fill="#2e7d32"/><path d="M13 34l9-6 9 6z" fill="#1b5e20"/>
-<rect x="68" y="44" width="16" height="14" fill="#f9a825"/><path d="M76 44v14M68 51h16" stroke="#c62828" stroke-width="2.5"/>
-<path d="M44 66q2-26 17-26 15 0 17 26z" fill="#e53935"/><rect x="44" y="58" width="34" height="4" fill="#fff"/>
-<circle cx="61" cy="32" r="9" fill="#f5cba7"/><ellipse cx="61" cy="40" rx="9" ry="7" fill="#fff"/>
-<circle cx="64" cy="31" r="1.4" fill="#222"/>
-<path d="M51 28q8-24 26-10-10 0-14 10z" fill="#e53935"/><rect x="51" y="25" width="19" height="4" rx="2" fill="#fff"/><circle cx="78" cy="17" r="4.5" fill="#fff"/>
+/* string of colourful Christmas lights (bumbilya) */
+const LIGHTS = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="18" viewBox="0 0 96 18">
+<path d="M0 3Q12 9 24 3T48 3T72 3T96 3" stroke="#355e3b" stroke-width="1.6" fill="none"/>
+<g>
+<ellipse cx="12" cy="9.5" rx="3.4" ry="4.6" fill="#e53935"/>
+<ellipse cx="36" cy="9.5" rx="3.4" ry="4.6" fill="#fbc02d"/>
+<ellipse cx="60" cy="9.5" rx="3.4" ry="4.6" fill="#43a047"/>
+<ellipse cx="84" cy="9.5" rx="3.4" ry="4.6" fill="#1e88e5"/>
+</g>
+<g fill="#5d4037"><rect x="10" y="4" width="4" height="2.5" rx="1"/><rect x="34" y="4" width="4" height="2.5" rx="1"/><rect x="58" y="4" width="4" height="2.5" rx="1"/><rect x="82" y="4" width="4" height="2.5" rx="1"/></g>
 </svg>`);
 
 const CSS = `
@@ -70,65 +69,65 @@ const CSS = `
 .pp-xm input[type=checkbox]:checked{background:var(--pri)}
 .pp-xm input[type=checkbox]:checked::after{transform:translateX(16px)}
 
-/* ---------- Christmas theme ---------- */
+/* ---------- Philippine Christmas theme ---------- */
 html.xmas{
   --pri:#c62828;--pri2:#a61e1e;--soft:#fdecec;
-  --bg:#f5f2ec;
+  --bg:#fbf5e6;
   background:var(--bg) url("data:image/svg+xml,${TILE}") fixed;
 }
 html.xmas body{background:transparent}
 html.xmas .main-col{background:transparent}
 
-/* garland along the top edge */
-html.xmas body::before{content:"";position:fixed;top:0;left:0;right:0;height:5px;z-index:60;pointer-events:none;
-  background:repeating-linear-gradient(90deg,#c62828 0 20px,#2e7d32 20px 40px,#f9a825 40px 46px,#2e7d32 46px 66px)}
+/* twinkling string of lights along the top edge */
+html.xmas body::before{content:"";position:fixed;top:0;left:0;right:0;height:18px;z-index:60;pointer-events:none;
+  background:url("data:image/svg+xml,${LIGHTS}") repeat-x left top/96px 18px;
+  animation:xm-twinkle 1.6s ease-in-out infinite alternate}
+@keyframes xm-twinkle{from{opacity:.62;filter:saturate(.8)}to{opacity:1;filter:saturate(1.3) drop-shadow(0 0 3px rgba(255,214,79,.9))}}
 
-/* falling snow (three layers, seamless loop) */
+/* golden sparkles (no snow in the Philippines!) */
 html.xmas body::after{content:"";position:fixed;inset:0;z-index:50;pointer-events:none;
   background-image:
-    radial-gradient(3.5px 3.5px at 24px 36px,#e4ecf9 55%,rgba(255,255,255,.55) 80%,transparent),
-    radial-gradient(2.5px 2.5px at 140px 90px,#e4ecf9 55%,rgba(255,255,255,.55) 80%,transparent),
-    radial-gradient(3px 3px at 60px 150px,#e4ecf9 55%,rgba(255,255,255,.55) 80%,transparent),
-    radial-gradient(2.5px 2.5px at 230px 40px,#e4ecf9 55%,rgba(255,255,255,.55) 80%,transparent);
-  background-size:200px 200px,300px 300px,250px 250px,320px 320px;
-  animation:xm-snow 16s linear infinite}
-@keyframes xm-snow{to{background-position:30px 600px,-60px 600px,20px 500px,-40px 640px}}
+    radial-gradient(3px 3px at 30px 40px,#ffd54f 45%,rgba(255,213,79,.4) 75%,transparent),
+    radial-gradient(2.2px 2.2px at 150px 110px,#ffe082 45%,rgba(255,224,130,.4) 75%,transparent),
+    radial-gradient(2.6px 2.6px at 70px 170px,#ffca28 45%,rgba(255,202,40,.4) 75%,transparent),
+    radial-gradient(2px 2px at 240px 60px,#fff3b0 45%,rgba(255,243,176,.4) 75%,transparent);
+  background-size:210px 210px,310px 310px,260px 260px,330px 330px;
+  animation:xm-spark 3.2s ease-in-out infinite alternate}
+@keyframes xm-spark{from{opacity:.25}to{opacity:.95}}
 
-/* sidebar logo wears a Santa hat; footer + active item pick up the red accent automatically */
+/* sidebar logo gets a little parol; footer + active item pick up the red accent automatically */
 html.xmas .side .brand{position:relative}
-html.xmas .side .brand::before{content:"";position:absolute;left:7px;top:-8px;z-index:2;width:34px;height:27px;transform:rotate(-16deg);pointer-events:none;
-  background:url("data:image/svg+xml,${HAT}") center/contain no-repeat}
+html.xmas .side .brand::before{content:"";position:absolute;left:4px;top:-10px;z-index:2;width:22px;height:34px;pointer-events:none;
+  transform-origin:50% 0;animation:xm-sway 3.4s ease-in-out infinite alternate;
+  background:url("data:image/svg+xml,${PAROL_GOLD}") center/contain no-repeat}
 
-/* login: warm tint over the school photo + greeting */
+/* login: warm tint over the school photo + Filipino greeting */
 html.xmas .auth1{background:
-  linear-gradient(rgba(255,255,255,.55),rgba(255,255,255,.55)),
+  linear-gradient(rgba(255,251,240,.55),rgba(255,251,240,.55)),
   radial-gradient(circle at 12% 8%,rgba(198,40,40,.16),transparent 42%),
-  radial-gradient(circle at 88% 92%,rgba(46,125,50,.18),transparent 44%),
+  radial-gradient(circle at 88% 92%,rgba(249,168,37,.2),transparent 44%),
   url("login-bg.jpg") center bottom/cover no-repeat fixed,var(--bg)}
-html.xmas .authw::before{content:"Merry Christmas from TTVHS \\1F384";display:block;margin-bottom:8px;text-align:center;font-weight:700;color:var(--pri)}
-html.xmas .acard::before{background:repeating-linear-gradient(90deg,#c62828 0 20px,#2e7d32 20px 40px)}
+html.xmas .authw::before{content:"Maligayang Pasko mula sa TTVHS \\1F31F";display:block;margin-bottom:8px;text-align:center;font-weight:700;color:var(--pri)}
+html.xmas .acard::before{background:repeating-linear-gradient(90deg,#c62828 0 20px,#f9a825 20px 40px,#1e66c9 40px 60px)}
 
-
-/* Santa flies across the top of the page now and then (a few seconds after loading, then every 45s) */
-html.xmas::after{content:"";position:fixed;top:6px;left:0;width:150px;height:55px;z-index:55;pointer-events:none;
-  background:url("data:image/svg+xml,${SANTA}") center/contain no-repeat;
-  filter:drop-shadow(0 3px 3px rgba(0,0,0,.18));
-  transform:translateX(-230px);
-  animation:xm-santa 45s linear 3s infinite}
-@keyframes xm-santa{
-  0%{transform:translate(-230px,10px) rotate(2deg)}
-  6%{transform:translate(18vw,-6px) rotate(-3deg)}
-  12%{transform:translate(36vw,16px) rotate(3deg)}
-  18%{transform:translate(54vw,-8px) rotate(-3deg)}
-  24%{transform:translate(72vw,14px) rotate(3deg)}
-  30%,100%{transform:translate(calc(100vw + 230px),0) rotate(0deg)}
+/* big swaying parol: red one (::after) and blue one (::before) hang from the lights */
+html.xmas::after,html.xmas::before{content:"";position:fixed;top:10px;z-index:55;pointer-events:none;
+  width:64px;height:102px;transform-origin:50% 0;
+  filter:drop-shadow(0 4px 6px rgba(0,0,0,.2)) drop-shadow(0 0 8px rgba(255,214,79,.55))}
+html.xmas::after{right:190px;background:url("data:image/svg+xml,${PAROL_RED}") center/contain no-repeat;animation:xm-sway 3s ease-in-out infinite alternate}
+html.xmas::before{left:46%;background:url("data:image/svg+xml,${PAROL_BLUE}") center/contain no-repeat;animation:xm-sway 3.8s ease-in-out -1.2s infinite alternate}
+@keyframes xm-sway{from{transform:rotate(-7deg)}to{transform:rotate(7deg)}}
+@media(max-width:640px){
+  html.xmas::after{width:44px;height:70px;right:84px;top:8px}
+  html.xmas::before{display:none}
 }
-@media(max-width:640px){html.xmas::after{width:110px;height:40px;top:8px}}
 
 /* never distract during a test, and keep prints clean */
-html.xmas body.testing::after,html.xmas body.testing::before,html.xmas:has(body.testing)::after{display:none}
-@media print{html.xmas body::after,html.xmas body::before,html.xmas::after{display:none}html.xmas{background:#fff}}
-@media (prefers-reduced-motion:reduce){html.xmas body::after,html.xmas::after{display:none}}
+html.xmas body.testing::after,html.xmas body.testing::before,html.xmas:has(body.testing)::after,html.xmas:has(body.testing)::before{display:none}
+@media print{html.xmas body::after,html.xmas body::before,html.xmas::after,html.xmas::before{display:none}html.xmas{background:#fff}}
+@media (prefers-reduced-motion:reduce){
+  html.xmas body::after,html.xmas body::before,html.xmas::after,html.xmas::before,html.xmas .side .brand::before{animation:none}
+}
 `;
 
 const style = document.createElement("style");
