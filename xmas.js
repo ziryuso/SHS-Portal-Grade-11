@@ -55,6 +55,52 @@ const parol = (c, c2) => encodeURIComponent(
 const PAROL_RED = parol("#d32f2f", "#f9a825");
 const PAROL_GOLD = parol("#f9a825", "#c62828");
 
+/* ---------- login page: Christmas trees topped with a parol, covered in twinkling lights ---------- */
+const BULB_COLORS = ["#ff5252", "#ffd54f", "#40c4ff", "#ff80ab", "#b2ff59"];
+const BULBS = [
+    [100,72],[86,96],[114,100],[72,122],[128,124],
+    [100,112],[78,146],[122,148],[58,172],[142,174],[100,150],[100,176],
+    [76,204],[124,206],[46,232],[154,234],[100,226],[22,248],[178,250],[70,246],[130,248]
+];
+const bulbs = BULBS.map(([x, y], i) => {
+    const c = BULB_COLORS[i % 5];
+    return `<g class="b d${i % 4}"><circle cx="${x}" cy="${y}" r="8" fill="${c}" opacity=".3"/><circle cx="${x}" cy="${y}" r="3.8" fill="${c}"/></g>`;
+}).join("");
+const tree = `
+<rect x="89" y="252" width="22" height="30" rx="2" fill="#6d4c2a"/>
+<polygon points="100,46 142,132 58,132" fill="#2e7d32"/>
+<polygon points="100,92 168,194 32,194" fill="#388e3c"/>
+<polygon points="100,138 192,258 8,258" fill="#2e7d32"/>
+<path d="M100 46L58 132M100 92L32 194M100 138L8 258" stroke="#1b5e20" stroke-width="2" opacity=".5"/>
+<path d="M64 122Q100 138 136 122M44 184Q100 210 156 184M20 248Q100 280 180 248" stroke="#f9a825" stroke-width="3" fill="none" stroke-dasharray="1 6" stroke-linecap="round"/>
+${bulbs}
+<g transform="translate(100 40) scale(.62) translate(-50 -48)">
+<circle cx="50" cy="48" r="46" fill="#ffd54f" opacity=".28" class="b d1"/>
+<path d="M72 78L84 122M28 78L16 122M50 64v58" stroke="#f9a825" stroke-width="5" stroke-linecap="round"/>
+<polygon points="${STAR}" fill="#d32f2f" stroke="#fff3c4" stroke-width="3" stroke-linejoin="round"/>
+<polygon points="${STAR}" fill="#fff3c4" opacity=".35" transform="translate(50 48) scale(.5) translate(-50 -48)"/>
+<circle cx="50" cy="48" r="7" fill="#fff8dc" class="b d2"/>
+</g>`;
+const TREES = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 330 300">
+<style>.b{animation:t 1.3s ease-in-out infinite alternate}.d1{animation-delay:.35s}.d2{animation-delay:.7s}.d3{animation-delay:1s}@keyframes t{0%{opacity:.2}100%{opacity:1}}</style>
+<g>${tree}</g>
+<g transform="translate(205 120) scale(.6)">${tree}</g>
+<g><rect x="12" y="266" width="30" height="26" fill="#c62828"/><rect x="24" y="266" width="6" height="26" fill="#f9a825"/><rect x="12" y="276" width="30" height="5" fill="#f9a825"/></g>
+<g><rect x="150" y="272" width="26" height="22" fill="#1565c0"/><rect x="160" y="272" width="6" height="22" fill="#ffd54f"/></g>
+<g><rect x="290" y="274" width="28" height="20" fill="#2e7d32"/><rect x="301" y="274" width="6" height="20" fill="#f9a825"/></g>
+</svg>`);
+
+/* long string of twinkling Christmas lights that droops across the top of the login page */
+const LIGHTS = encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="60" height="34" viewBox="0 0 60 34">
+<style>.b{animation:t 1.1s ease-in-out infinite alternate}.d1{animation-delay:.37s}.d2{animation-delay:.74s}@keyframes t{0%{opacity:.25}100%{opacity:1}}</style>
+<path d="M0 3Q30 22 60 3" stroke="#355e3b" stroke-width="1.6" fill="none"/>
+<g class="b"><circle cx="15" cy="14" r="7" fill="#ff5252" opacity=".3"/><circle cx="15" cy="14" r="3.6" fill="#ff5252"/></g>
+<g class="b d1"><circle cx="30" cy="16.5" r="7" fill="#ffd54f" opacity=".3"/><circle cx="30" cy="16.5" r="3.6" fill="#ffd54f"/></g>
+<g class="b d2"><circle cx="45" cy="14" r="7" fill="#40c4ff" opacity=".3"/><circle cx="45" cy="14" r="3.6" fill="#40c4ff"/></g>
+</svg>`);
+
 const CSS = `
 /* ---------- always available: the on/off switch row ---------- */
 .pp-xm{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-size:14px;font-weight:600;cursor:pointer}
@@ -111,6 +157,19 @@ html.xmas::before{right:210px;width:44px;height:58px;background:url("data:image/
 html.xmas::after{right:150px;width:36px;height:48px;animation-delay:-1.8s;background:url("data:image/svg+xml,${PAROL_GOLD}") center/contain no-repeat}
 @keyframes xm-sway{0%{transform:rotate(-7deg)}100%{transform:rotate(7deg)}}
 @media(max-width:900px){html.xmas::before{right:92px;width:34px;height:45px}html.xmas::after{display:none}}
+
+/* ---------- login page extras: trees with a parol on top + lots of twinkling lights ---------- */
+html.xmas{--tw:clamp(210px,25vw,350px)}
+html.xmas .auth1::before,html.xmas .auth1::after{content:"";position:fixed;bottom:0;z-index:1;pointer-events:none;
+  width:var(--tw);height:calc(var(--tw)*.91);
+  background:url("data:image/svg+xml,${TREES}") center bottom/contain no-repeat;
+  filter:drop-shadow(0 0 10px rgba(255,213,79,.35))}
+html.xmas .auth1::before{left:1vw}
+html.xmas .auth1::after{right:1vw;transform:scaleX(-1)}
+html.xmas:has(.auth1) body::before{height:52px;
+  background:url("data:image/svg+xml,${BUNTING}") 0 0/160px 18px repeat-x,url("data:image/svg+xml,${LIGHTS}") 0 16px/60px 34px repeat-x}
+@media(max-width:900px){html.xmas .auth1::before,html.xmas .auth1::after{display:none}}
+@media (prefers-reduced-motion:reduce){html.xmas .auth1::before,html.xmas .auth1::after{filter:none}}
 
 /* never distract during a test, and keep prints clean */
 html.xmas body.testing::after,html.xmas body.testing::before,html.xmas:has(body.testing)::after,html.xmas:has(body.testing)::before{display:none}
