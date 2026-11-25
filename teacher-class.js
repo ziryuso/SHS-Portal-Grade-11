@@ -9,7 +9,7 @@ import {
 } from "./core.js";
 import {
     TW, byName, chunk, counted, fdlg, fm, mean, mini,
-    myLoads, pages, sp, studentsFor, subsFor, twBadge
+    myLoads, pages, siblingLoads, sp, studentsFor, subsFor, twBadge
 } from "./teacher-shared.js";
 
 /* ---------- classes (each class card opens the class) ---------- */
@@ -32,10 +32,10 @@ async function ctx(id) {
     if (ld.teacherUid !== S.me.uid)
         return null;
     const safe = p => p.catch(() => []), byAt = (x, y) => ts(x.at) - ts(y.at);
-    const [subj, sec, studs, acts, subs, topics, mats, anns] = await Promise.all([getDoc(doc(db, "subjects", ld.subjectId)), getDoc(doc(db, "sections", ld.sectionId)), studentsFor([ld.sectionId]),
+    const [subj, sec, studs, acts, subs, topics, mats, anns, sibs] = await Promise.all([getDoc(doc(db, "subjects", ld.subjectId)), getDoc(doc(db, "sections", ld.sectionId)), studentsFor([ld.sectionId]),
         list("activities", where("loadId", "==", id)), list("submissions", where("loadId", "==", id)),
-        safe(list("topics", where("loadId", "==", id))), safe(list("materials", where("loadId", "==", id))), safe(list("classAnn", where("loadId", "==", id)))]);
-    return { ld, sn: subj.data()?.name || "Subject", secName: sec.data()?.name || "Section", studs, acts: acts.filter(a => a.v === 2).sort(byAt), subs, topics: topics.sort(byAt), mats: mats.sort((x, y) => byAt(y, x)), anns: anns.sort((x, y) => byAt(y, x)) };
+        safe(list("topics", where("loadId", "==", id))), safe(list("materials", where("loadId", "==", id))), safe(list("classAnn", where("loadId", "==", id))), siblingLoads(id).catch(() => [])]);
+    return { ld, sibs, sn: subj.data()?.name || "Subject", secName: sec.data()?.name || "Section", studs, acts: acts.filter(a => a.v === 2).sort(byAt), subs, topics: topics.sort(byAt), mats: mats.sort((x, y) => byAt(y, x)), anns: anns.sort((x, y) => byAt(y, x)) };
 }
 const tabs = (id, cur) => `<div class="tabs">${[["activities", "Classwork"], ["record", "Class record"], ["students", "Students"], ["analysis", "Item analysis"]].map(([k, l]) => `<a class="${k === cur ? "on" : ""}" href="#/load/${id}/${k}">${l}</a>`).join("")}</div>`;
 pages.load = async ([id, tab = "activities", extra]) => {
@@ -133,10 +133,10 @@ pages.load = async ([id, tab = "activities", extra]) => {
         return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl, sk)}${twBadge(a)}${a.release ? " " + badge("Answers released", "ok") : ""}
     <div class="mut sm">${[`${a.questions.length} items`, `${a.totalPts} pts`, `${a.attempts} attempt${a.attempts > 1 ? "s" : ""}`, a.timeLimit ? a.timeLimit + " min" : "", a.closes ? "Due " + fdate(a.closes) : "", a.opens && Date.now() < a.opens ? "Opens " + fdate(a.opens) : ""].filter(Boolean).join(" · ")}</div>
     ${a.draft ? "" : `<div class="sm"><b>${new Set(ss.map(s => s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg ? ` · <a href="#/grade/${a.id}">${badge(tg + " to grade", "warn")}</a>` : ""}</div>`}</div>
-    <div class="row">${a.draft ? "" : `<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}${a.hasEssay ? `<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>` : ""}${ED ? `<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${btn("relact", a.release ? "Hide answers" : "Release answers", a.id, "ghost")}${btn("dupact", "Duplicate", a.id, "ghost")}${btn("delact", "Delete", a.id, "danger")}` : ""}</div></div>`;
+    <div class="row">${a.draft ? "" : `<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}${a.hasEssay ? `<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>` : ""}${ED ? `<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${btn("relact", a.release ? "Hide answers" : "Release answers", a.id, "ghost")}${btn("dupact", "Duplicate", a.id, "ghost")}${c.sibs.length ? btn("t_copy", "Copy to…", a.id, "ghost", `data-col="activities"`) : ""}${btn("delact", "Delete", a.id, "danger")}` : ""}</div></div>`;
     };
-    const annItem = x => `<div class="item"><div><b>${esc(x.title || "Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g, "<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${ED ? `<div class="row">${btn("t_tag", "Term/Week", x.id, "ghost", `data-col="classAnn" data-t="${x.term || ""}" data-w="${x.week || ""}"`)}${btn("t_delann", "Delete", x.id, "danger")}</div>` : ""}</div>`;
-    const matItem = m => `<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note ? `<div class="mut sm">${esc(m.note)}</div>` : ""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${ED ? btn("t_tag", "Term/Week", m.id, "ghost", `data-col="materials" data-t="${m.term || ""}" data-w="${m.week || ""}"`) + btn("t_delmat", "Delete", m.id, "danger") : ""}</div></div>`;
+    const annItem = x => `<div class="item"><div><b>${esc(x.title || "Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g, "<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${ED ? `<div class="row">${btn("t_tag", "Term/Week", x.id, "ghost", `data-col="classAnn" data-t="${x.term || ""}" data-w="${x.week || ""}"`)}${c.sibs.length ? btn("t_copy", "Copy to…", x.id, "ghost", `data-col="classAnn"`) : ""}${btn("t_delann", "Delete", x.id, "danger")}</div>` : ""}</div>`;
+    const matItem = m => `<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note ? `<div class="mut sm">${esc(m.note)}</div>` : ""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${ED ? btn("t_tag", "Term/Week", m.id, "ghost", `data-col="materials" data-t="${m.term || ""}" data-w="${m.week || ""}"`) + (c.sibs.length ? btn("t_copy", "Copy to…", m.id, "ghost", `data-col="materials"`) : "") + btn("t_delmat", "Delete", m.id, "danger") : ""}</div></div>`;
     const fold = (t, n, items) => `<div class="fold2"><div class="fh"><span class="sp">${t}</span><span class="badge mut">${n}</span></div>${items.join("") || `<p class="mut sm">Nothing yet.</p>`}</div>`;
     const docNames = new Set(c.topics.map(t => t.name));
     const legacy = [...new Set([...c.acts.map(a => a.topic), ...c.mats.map(m => m.topic), ...c.anns.map(x => x.topic)].filter(n => n && !docNames.has(n)))];
@@ -224,14 +224,63 @@ act.t_deltopic = async (el) => {
     toast("Topic deleted.");
     refresh();
 };
+/* ---------- cross-posting: same subject, other sections of this teacher ---------- */
+const sibField = sibs => sibs.length ? [{ k: "to", l: "Also post to my other sections of this subject", multi: sibs.map(l => [l.id, l.sec]) }] : [];
+/* a copied item keeps its topic: create that topic in the target class if it does not exist yet */
+async function topicIfMissing(b, name, t) {
+    const have = await list("topics", where("loadId", "==", t.id)).catch(() => []);
+    if (!have.some(x => x.name === name))
+        b.set(doc(collection(db, "topics")), { loadId: t.id, sectionId: t.sectionId, name, by: S.me.uid, at: serverTimestamp() });
+}
+/** Posts one item to this class and to each ticked sibling class (one independent copy each). Returns the number of extra sections. */
+async function postTo(col, lid, base, ids = []) {
+    const [own, all] = await Promise.all([loadOf(lid), siblingLoads(lid)]), sibs = all.filter(l => ids.includes(l.id));
+    const gid = sibs.length ? doc(collection(db, col)).id : "", b = writeBatch(db);
+    for (const t of [{ id: lid, sectionId: own.sectionId }, ...sibs]) {
+        if (t.id !== lid && base.topic)
+            await topicIfMissing(b, base.topic, t);
+        b.set(doc(collection(db, col)), { ...base, loadId: t.id, sectionId: t.sectionId, by: S.me.uid, at: serverTimestamp(), ...(gid ? { crossPostGroupId: gid } : {}) });
+    }
+    await b.commit();
+    return sibs.length;
+}
+const more = n => n ? ` (+${n} other section${n > 1 ? "s" : ""})` : "";
 act.t_addann = async (el) => {
-    const r = await fdlg("New announcement", [{ k: "t", l: "Title", req: 1 }, { k: "x", l: "Message", ta: 1, req: 1 }, ...TW()], "Post");
+    const sibs = await siblingLoads(el.dataset.id).catch(() => []);
+    const r = await fdlg("New announcement", [{ k: "t", l: "Title", req: 1 }, { k: "x", l: "Message", ta: 1, req: 1 }, ...TW(), ...sibField(sibs)], "Post");
     if (!r)
         return;
-    const ld = await loadOf(el.dataset.id);
-    await addDoc(collection(db, "classAnn"), { loadId: el.dataset.id, sectionId: ld.sectionId, topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, text: r.x, by: S.me.uid, at: serverTimestamp() });
+    const n = await postTo("classAnn", el.dataset.id, { topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, text: r.x }, r.to);
     log("class announcement " + r.t);
-    toast("Announcement posted.");
+    toast("Announcement posted." + more(n));
+    refresh();
+};
+/* copy an existing announcement / material / activity to other sections of the same subject */
+act.t_copy = async (el) => {
+    const col = el.dataset.col, id = el.dataset.id, src = await getDoc(doc(db, col, id));
+    if (!src.exists())
+        return toast("Item not found.", "bad");
+    const d = src.data(), sibs = await siblingLoads(d.loadId);
+    if (!sibs.length)
+        return toast("You have no other section for this subject.", "bad");
+    const key = col === "activities" ? await getDoc(doc(db, "keys", id)) : null;
+    if (key && !key.exists())
+        return toast("The answer key for this activity is missing, so it cannot be copied.", "bad");
+    const r = await fdlg("Copy to other sections", [{ k: "to", l: "Copy to", multi: sibs.map(l => [l.id, l.sec]) }], "Copy", o => o.to.length ? "" : "Choose at least one section.");
+    if (!r)
+        return;
+    const targets = sibs.filter(l => r.to.includes(l.id)), b = writeBatch(db), { crossPostGroupId, ...base } = d;
+    for (const t of targets) {
+        if (d.topic)
+            await topicIfMissing(b, d.topic, t);
+        const ref = doc(collection(db, col));
+        b.set(ref, { ...base, loadId: t.id, sectionId: t.sectionId, by: S.me.uid, at: serverTimestamp(), ...(key ? { release: false, updatedAt: serverTimestamp() } : {}) });
+        if (key)
+            b.set(doc(db, "keys", ref.id), { ...key.data(), loadId: t.id, sectionId: t.sectionId });
+    }
+    await b.commit();
+    log(`copied ${col} ${id} to ${targets.length} section(s)`);
+    toast(`Copied to ${targets.length} section${targets.length > 1 ? "s" : ""}.`);
     refresh();
 };
 act.t_tag = async (el) => {
@@ -248,13 +297,13 @@ act.t_delann = async (el) => { if (await ask("Delete this announcement?", "Delet
     refresh();
 } };
 act.t_addmat = async (el) => {
-    const r = await fdlg("New material", [{ k: "t", l: "Title", ph: "e.g. Module 3", req: 1 }, { k: "u", l: "Link (Google Drive, etc.)", type: "url", ph: "https://", req: 1 }, { k: "n", l: "Note" }, ...TW()], "Post", o => /^https?:\/\//i.test(o.u) ? "" : "The link must start with http:// or https://");
+    const sibs = await siblingLoads(el.dataset.id).catch(() => []);
+    const r = await fdlg("New material", [{ k: "t", l: "Title", ph: "e.g. Module 3", req: 1 }, { k: "u", l: "Link (Google Drive, etc.)", type: "url", ph: "https://", req: 1 }, { k: "n", l: "Note" }, ...TW(), ...sibField(sibs)], "Post", o => /^https?:\/\//i.test(o.u) ? "" : "The link must start with http:// or https://");
     if (!r)
         return;
-    const ld = await loadOf(el.dataset.id);
-    await addDoc(collection(db, "materials"), { loadId: el.dataset.id, sectionId: ld.sectionId, topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, url: r.u, note: r.n, by: S.me.uid, at: serverTimestamp() });
+    const n = await postTo("materials", el.dataset.id, { topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, url: r.u, note: r.n }, r.to);
     log("posted material " + r.t);
-    toast("Material posted.");
+    toast("Material posted." + more(n));
     refresh();
 };
 act.t_delmat = async (el) => { if (await ask("Delete this material?", "Delete", true)) {
@@ -285,7 +334,8 @@ act.dupact = async (el) => {
     if (!k.exists())
         return toast("The answer key for this activity is missing, so it cannot be duplicated.", "bad");
     const ref = doc(collection(db, "activities")), b = writeBatch(db);
-    b.set(ref, { ...a.data(), title: a.data().title + " (copy)", draft: true, opens: 0, closes: 0, release: false, at: serverTimestamp(), updatedAt: serverTimestamp() });
+    const { crossPostGroupId, ...src } = a.data();
+    b.set(ref, { ...src, title: a.data().title + " (copy)", draft: true, opens: 0, closes: 0, release: false, at: serverTimestamp(), updatedAt: serverTimestamp() });
     b.set(doc(db, "keys", ref.id), k.data());
     await b.commit();
     toast("Duplicated. It is saved as a draft — edit it to publish.");
