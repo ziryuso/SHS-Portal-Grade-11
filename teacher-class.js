@@ -2,26 +2,50 @@
  * teacher-class.js - My Classes list and the class page: classwork, class record, students, item analysis, topics, materials, announcements.
  */
 import {
-    S, act, addDoc, ask, badge, bar, btn, collection,
+    S, act, chg, addDoc, ask, badge, bar, btn, collection,
     db, deleteDoc, doc, empty, errMsg, esc, fdate, getDoc,
     head, ic, list, log, pct, refresh, saveCsv, serverTimestamp,
     stat, tbl, toast, ts, updateDoc, where, writeBatch
 } from "./core.js";
 import {
-    TW, XF, byName, chunk, counted, ensureTopic, fdlg, fm, mean, mini,
+    TW, XF, byName, chunk, counted, curTerm, ensureTopic, fdlg, fm, mean, mini,
     myLoads, newXid, pages, siblingLoads, sp, studentsFor, subsFor, twBadge, xBadge
 } from "./teacher-shared.js";
 
+/* ---------- design helpers: section colour badge, short dates ---------- */
+const PAL = ["#0f6259", "#c4572a", "#3d5a9b", "#8a5a9f", "#b8860b", "#2f7d4f"];
+const secColor = n => PAL[[...String(n)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % PAL.length];
+const secBadge = (n, cls = "") => `<span class="sbadge ${cls}" style="--c:${secColor(n)}">${esc(n)}</span>`;
+const sdate = ms => ms ? new Date(ms).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+/* feed filters + "also post to" selection (kept while you move between classes of the same subject) */
+const FEED = { id: "", term: 0, w: 0, t: "" };
+const XSEL = new Set();
+let CUR = null;
 /* ---------- classes (each class card opens the class) ---------- */
 pages.classes = async () => {
     const loads = await myLoads(), ids = loads.map(l => l.id);
     const [acts0, subs, studs] = await Promise.all([ids.length ? list("activities", where("by", "==", S.me.uid)) : [], subsFor(ids), studentsFor(loads.map(l => l.sectionId))]);
-    const acts = acts0.filter(a => a.v === 2);
-    return head("My classes") + `<div class="cards">${loads.map(l => {
-        const n = studs.filter(s => s.sectionId === l.sectionId).length, as = acts.filter(a => a.loadId === l.id && !a.draft), ss = subs.filter(s => s.loadId === l.id), avg = mean(ss.filter(counted).map(sp)), comp = pct(ss.length, n * as.length);
-        return `<a class="card subj clk" href="#/load/${l.id}" aria-label="Open ${esc(l.sn)}, ${esc(l.sec)}"><span class="chip">${esc(l.sec)}</span><h3>${esc(l.sn)}</h3><div class="mut sm">${n} students · ${as.length} activities</div>
-    <div class="row between sm" style="margin-top:8px"><span>Completion</span><b>${comp}%</b></div>${bar(comp)}<div class="row between sm"><span>Class average</span><b>${fm(avg)}</b></div></a>`;
-    }).join("") || `<div class="card">${empty("No classes assigned yet.", "book")}</div>`}</div>`;
+    const acts = acts0.filter(a => a.v === 2), pubActs = acts.filter(a => !a.draft);
+    const t0 = new Date(); t0.setHours(0, 0, 0, 0);
+    const tm0 = t0.getTime() + 864e5, tm1 = tm0 + 864e5;
+    const toGrade = subs.filter(s => s.graded === false && acts.some(a => a.id === s.actId));
+    const closing = pubActs.filter(a => a.closes >= tm0 && a.closes < tm1);
+    const bits = [toGrade.length ? `${toGrade.length} essay${toGrade.length > 1 ? "s" : ""} to grade` : "", closing.length ? `${closing.length} test${closing.length > 1 ? "s" : ""} closes tomorrow` : ""].filter(Boolean);
+    const rv = toGrade[0] ? `<a class="btn ghost" href="#/grade/${toGrade[0].actId}">Review</a>` : closing[0] ? `<a class="btn ghost" href="#/load/${closing[0].loadId}">Review</a>` : "";
+    const attn = bits.length ? `<div class="card attn"><div><b>Needs your attention</b><span class="mut sm">${bits.join(" · ")}</span></div>${rv}</div>` : "";
+    const card = l => {
+        const n = studs.filter(s => s.sectionId === l.sectionId).length, as = pubActs.filter(a => a.loadId === l.id), ss = subs.filter(s => s.loadId === l.id);
+        const avg = mean(ss.filter(counted).map(sp)), comp = pct(ss.length, n * as.length), tg = ss.filter(s => s.graded === false).length;
+        return `<div class="ccard"><div class="top">${secBadge(l.sec)}<div><h3>${esc(l.sn)}</h3><span class="mut sm">Section ${esc(l.sec)}</span></div></div>
+    <div class="meta"><span>${n} student${n === 1 ? "" : "s"} · ${as.length} activit${as.length === 1 ? "y" : "ies"}</span>${tg ? `<span class="pill">${tg} to grade</span>` : ""}</div>
+    <div class="kv"><span class="mut">Completion</span><b>${comp}%</b></div>${bar(comp)}<div class="kv"><span class="mut">Class average</span><b>${fm(avg)}</b></div>
+    <div class="btns"><a class="btn" href="#/load/${l.id}" aria-label="Open ${esc(l.sn)}, ${esc(l.sec)}">Classwork</a><a class="btn ghost" href="#/load/${l.id}/students">Students</a><button class="btn ghost" data-a="p_open" data-id="${l.id}">+ Post</button></div></div>`;
+    };
+    const groups = [...new Set(loads.map(l => l.sn))].map(sn => ({ sn, ls: loads.filter(l => l.sn === sn) }));
+    const multi = groups.some(g => g.ls.length > 1);
+    const body = groups.map(g => `<div class="grp-h"><div class="l"><h2>${esc(g.sn)}</h2>${g.ls.length > 1 ? `<span class="pill">${g.ls.length} sections · same subject</span>` : ""}</div>${g.ls.length > 1 ? `<button class="btn ghost sm" data-a="p_multi" data-sn="${esc(g.sn)}">Crosspost a test, material or news</button>` : ""}</div><div class="cgrid">${g.ls.map(card).join("")}</div>`).join("");
+    return head("My classes", "", multi ? `<button class="btn" data-a="p_multi">+ Post to several sections</button>` : "") + attn
+        + (body || `<div class="card">${empty("No classes assigned yet.", "book")}</div>`);
 };
 /* ---------- one class ---------- */
 async function ctx(id) {
@@ -37,13 +61,19 @@ async function ctx(id) {
         safe(list("topics", where("loadId", "==", id))), safe(list("materials", where("loadId", "==", id))), safe(list("classAnn", where("loadId", "==", id)))]);
     return { ld, sn: subj.data()?.name || "Subject", secName: sec.data()?.name || "Section", studs, acts: acts.filter(a => a.v === 2).sort(byAt), subs, topics: topics.sort(byAt), mats: mats.sort((x, y) => byAt(y, x)), anns: anns.sort((x, y) => byAt(y, x)) };
 }
-const tabs = (id, cur) => `<div class="tabs">${[["activities", "Classwork"], ["record", "Class record"], ["students", "Students"], ["analysis", "Item analysis"]].map(([k, l]) => `<a class="${k === cur ? "on" : ""}" href="#/load/${id}/${k}">${l}</a>`).join("")}</div>`;
-pages.load = async ([id, tab = "activities", extra]) => {
+const tabs = (id, cur) => `<div class="tabs ctabs">${[["feed", "Feed"], ["activities", "Classwork"], ["students", "People"], ["record", "Results"], ["analysis", "Item analysis"]].map(([k, l]) => `<a class="${k === cur ? "on" : ""}" href="#/load/${id}/${k}">${l}</a>`).join("")}</div>`;
+pages.load = async ([id, tab = "feed", extra]) => {
+    S.xpre = null;
+    if (FEED.id !== id) {
+        Object.assign(FEED, { id, term: curTerm(), w: 0, t: "" });
+        XSEL.clear();
+    }
     const c = await ctx(id);
     if (!c)
         return `<div class="card">${empty("Class not found.")}<p class="right"><a class="btn" href="#/classes">Back</a></p></div>`;
     const cur = tab === "results" ? "activities" : tab === "student" ? "students" : tab;
-    const hd = head(c.sn, `${c.secName} · ${c.studs.length} students`, `<a class="btn ghost" href="#/classes">← Classes</a>`) + tabs(id, cur);
+    const sibs = await siblingLoads(id).catch(() => []), swTab = ["feed", "activities", "students", "record", "analysis"].includes(tab) ? tab : "feed";
+    const hd = `<div class="hero"><a class="back" href="#/classes">← My classes</a><h1>${esc(c.sn)}</h1><p>Section ${esc(c.secName)} · ${c.studs.length} students${S.set.term ? " · " + esc(S.set.term) : ""}</p>${sibs.length ? `<div class="sw">Switch section <a class="on" href="#/load/${id}/${swTab}">${esc(c.secName)}</a>${sibs.map(l => `<a href="#/load/${l.id}/${swTab}">${esc(l.sec)}</a>`).join("")}</div>` : ""}</div>` + tabs(id, cur);
     const subOf = (uid, aid) => c.subs.find(s => s.uid === uid && s.actId === aid);
     const pub = c.acts.filter(a => !a.draft);
     const rankRows = () => {
@@ -125,6 +155,38 @@ pages.load = async ([id, tab = "activities", extra]) => {
     <div class="cols"><div class="card"><h3>Score distribution</h3>${dist.map(([l, f]) => { const n = gs.filter(f).length; return `<div class="sm row between"><span>${l}</span><b>${n}</b></div>${bar(pct(n, gs.length))}`; }).join("")}</div>
     <div class="card"><h3>Hardest item</h3>${hardest ? `<p><b>Q${hardest.i + 1}</b> — only ${hardest.p}% got it right.</p><p class="mut">${esc(hardest.q.p)}</p>` : empty("No data yet.")}</div></div>
     <div class="card" style="margin-top:14px"><h3>Item analysis</h3>${qa.map(x => `<div class="item"><div style="flex:1;min-width:220px"><b>Q${x.i + 1}.</b> ${esc(x.q.p)}${x.es ? `<div class="mut sm">Essay — graded manually</div>` : `${bar(x.p || 0, x.p != null && x.p < 50 ? "bad" : x.p < 75 ? "warn" : "ok")}${x.top ? `<div class="mut sm">Most common wrong answer: “${esc(x.top[0])}” (${x.top[1]})</div>` : ""}`}</div>${x.es ? "" : `<b>${fm(x.p)}</b>`}</div>`).join("")}</div>`;
+    }
+    /* feed: Post bar + "Also post to" chips, then everything posted in this class, newest first */
+    if (tab === "feed") {
+        CUR = { id, c, sibs, at: Date.now() };
+        const all = [...c.acts.filter(a => !a.draft).map(x => ({ k: "quiz", x })), ...c.mats.map(x => ({ k: "mat", x })), ...c.anns.map(x => ({ k: "news", x }))];
+        const inTerm = i => !FEED.term || !i.x.term || i.x.term === FEED.term;
+        const weeks = [...new Set(all.filter(inTerm).map(i => i.x.week || 0).filter(Boolean))].sort((p, q) => p - q);
+        const items = all.filter(i => inTerm(i) && (!FEED.w || (i.x.week || 0) === FEED.w) && (!FEED.t || i.x.topic === FEED.t)).sort((p, q) => ts(q.x.at) - ts(p.x.at));
+        const names = [...new Set([...c.topics.map(t => t.name), ...all.map(i => i.x.topic).filter(Boolean)])];
+        const tg = c.subs.filter(s => s.graded === false), tgActs = [...new Set(tg.map(s => s.actId))].map(x => c.acts.find(a => a.id === x)).filter(Boolean);
+        const row = i => {
+            const x = i.x, wk = x.week ? ` · Wk ${x.week}` : "";
+            if (i.k === "quiz") {
+                const ss = c.subs.filter(s => s.actId === x.id), g = ss.filter(s => s.graded === false).length;
+                return `<div class="fitem"><span class="fi quiz">QUIZ</span><div class="fb"><b>${esc(x.title)}${xBadge(x)}</b><span>Test · ${x.questions.length} items · ${x.totalPts} pts${x.timeLimit ? " · " + x.timeLimit + " min" : ""} · ${new Set(ss.map(s => s.uid)).size} turned in · avg ${fm(mean(ss.filter(counted).map(sp)))}</span></div>
+        <div class="fa">${g ? `<a href="#/grade/${x.id}">${badge(g + " to grade", "warn")}</a>` : ""}<a class="btn sm ghost" href="#/load/${id}/results/${x.id}">Students</a><a class="btn sm ghost" href="#/editor/${id}/${x.id}">Edit</a></div></div>`;
+            }
+            if (i.k === "mat")
+                return `<div class="fitem"><span class="fi mat">MAT</span><div class="fb"><b>${esc(x.title)}${xBadge(x)}</b><span>Material${wk} · ${sdate(ts(x.at))}</span></div><div class="fa"><a class="btn sm ghost" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">Open</a></div></div>`;
+            return `<div class="fitem"><span class="fi news">NEWS</span><div class="fb"><b>${esc(x.title || "Announcement")}${xBadge(x)}</b><span>Announcement${wk} · ${sdate(ts(x.at))}</span></div></div>`;
+        };
+        const wk = (w, l) => `<a href="#/load/${id}/feed" class="${FEED.w === w ? "on" : ""}" data-a="f_week" data-w="${w}">${l}</a>`;
+        return hd + `<div class="row" style="margin-bottom:10px"><select data-c="f_term" aria-label="Term">${[0, 1, 2, 3].map(t => `<option value="${t}" ${FEED.term === t ? "selected" : ""}>${t ? "Term " + t : "All terms"}</option>`).join("")}</select></div>
+    <div class="wchips">${wk(0, "All")}${weeks.map(w => wk(w, "Wk " + w)).join("")}</div>
+    <div class="feedgrid"><div class="side2">
+      <div class="card"><h3>Needs grading</h3>${tg.length ? `<p class="mut sm">${tg.length} essay${tg.length > 1 ? "s" : ""} · ${tgActs.slice(0, 2).map(a => esc(a.title)).join(", ")}</p><a class="btn" style="width:100%;justify-content:center" href="#/grade/${tgActs[0]?.id || ""}">Grade now</a>` : `<p class="mut sm">Nothing to grade.</p>`}</div>
+      <div class="card"><h3>Topics</h3><a href="#/load/${id}/feed" class="tp ${FEED.t ? "" : "on"}" data-a="f_topic" data-t="">All topics</a>${names.map(n => `<a href="#/load/${id}/feed" class="tp ${FEED.t === n ? "on" : ""}" data-a="f_topic" data-t="${esc(n)}">${esc(n)}<span>${all.filter(i => i.x.topic === n).length}</span></a>`).join("")}</div>
+    </div><div>
+      <div class="card postbar"><div class="r1"><b>Post to ${esc(c.secName)}</b><div class="kinds">${btn("p_kind", "Announcement", id, "ghost", `data-k="ann"`)}${btn("p_kind", "Material", id, "ghost", `data-k="mat"`)}${btn("p_kind", "Test", id, "", `data-k="test"`)}</div></div>
+      ${sibs.length ? `<div class="r2">Also post to ${sibs.map(l => `<button type="button" class="xchip ${XSEL.has(l.id) ? "on" : ""}" data-a="p_x" data-id="${l.id}">${esc(l.sec)}</button>`).join("")}</div>` : ""}</div>
+      ${items.map(row).join("") || `<div class="card">${empty("Nothing posted for this selection yet.", "list")}</div>`}
+    </div></div><button class="btn fab" data-a="p_open" data-id="${id}">+ Create</button>`;
     }
     /* classwork: topic first, each topic holds Announcements, Materials and Tests */
     const state = a => a.draft ? ["Draft", "mut"] : a.opens && Date.now() < a.opens ? ["Scheduled", "info"] : a.closes && Date.now() > a.closes ? ["Closed", "bad"] : ["Open", "ok"];
@@ -306,4 +368,154 @@ act.dupact = async (el) => {
     await b.commit();
     toast("Duplicated. It is saved as a draft — edit it to publish.");
     location.reload();
+};
+/* ---------- feed filters ---------- */
+act.f_week = el => { FEED.w = +el.dataset.w; refresh(); };
+act.f_topic = el => { FEED.t = el.dataset.t || ""; refresh(); };
+chg.f_term = el => { FEED.term = +el.value; FEED.w = 0; refresh(); };
+act.p_x = el => { const id = el.dataset.id; XSEL.has(id) ? XSEL.delete(id) : XSEL.add(id); el.classList.toggle("on", XSEL.has(id)); };
+/* ---------- post to this section (+ other sections of the same subject) ---------- */
+const useCur = async lid => {
+    if (CUR?.id !== lid || Date.now() - CUR.at > 20000) {
+        const c = await ctx(lid);
+        if (!c)
+            throw new Error("Class not found.");
+        CUR = { id: lid, c, sibs: await siblingLoads(lid).catch(() => []), at: Date.now() };
+    }
+    return CUR;
+};
+const postDlg = (lid, kind) => new Promise(resolve => {
+    const { c, sibs } = CUR, d = document.createElement("dialog");
+    const names = [...new Set([...c.topics.map(t => t.name), ...[...c.acts, ...c.mats, ...c.anns].map(x => x.topic).filter(Boolean)])];
+    const sel = new Set([...XSEL].filter(x => sibs.some(l => l.id === x)));
+    const opt = (n, cur) => `<option value="${n}" ${n === cur ? "selected" : ""}>${n}</option>`;
+    d.className = "modal pdlg";
+    d.innerHTML = `<h3>${{ ann: "New announcement", mat: "New material", test: "New test" }[kind]} · ${esc(c.secName)}</h3>
+    <label for="pt">Topic</label><select id="pt">${names.map(n => `<option value="${esc(n)}" ${n === FEED.t ? "selected" : ""}>${esc(n)}</option>`).join("")}<option value="__new" ${names.length ? "" : "selected"}>+ New topic…</option></select>
+    <input id="ptn" placeholder="Topic name, e.g. Unit 7 – Trigonometry" maxlength="80" ${names.length ? "hidden" : ""}>
+    ${kind === "test" ? "" : `<div class="two"><div><label for="ptm">Term</label><select id="ptm">${[1, 2, 3].map(t => opt(t, curTerm())).join("")}</select></div><div><label for="pwk">Week</label><select id="pwk">${Array.from({ length: 20 }, (_, i) => opt(i + 1, +c.acts.concat(c.mats, c.anns).sort((p, q) => ts(q.at) - ts(p.at))[0]?.week || 1)).join("")}</select></div></div>`}
+    ${kind === "ann" ? `<label for="pti">Title</label><input id="pti" maxlength="120"><label for="ptx">Message</label><textarea id="ptx" rows="4"></textarea>` : ""}
+    ${kind === "mat" ? `<label for="pti">Title</label><input id="pti" maxlength="120" placeholder="e.g. Module 3"><label for="ptu">Link (Google Drive, etc.)</label><input id="ptu" type="url" placeholder="https://"><label for="ptn2">Note</label><input id="ptn2" maxlength="300">` : ""}
+    ${sibs.length ? `<label>Also post to</label><div class="xrow">${sibs.map(l => `<button type="button" class="xchip ${sel.has(l.id) ? "on" : ""}" data-g="x2" data-id="${l.id}">${esc(l.sec)}</button>`).join("")}</div>` : ""}
+    <p class="mut sm" id="perr" role="alert"></p>
+    <div class="end"><button class="btn ghost" data-g="x">Cancel</button><button class="btn" data-g="ok">${kind === "test" ? "Continue" : "Post"}</button></div>`;
+    const fin = r => { d.close(); d.remove(); resolve(r); };
+    const val = id => (d.querySelector("#" + id)?.value || "").trim();
+    d.addEventListener("change", e => { if (e.target.id === "pt") d.querySelector("#ptn").hidden = e.target.value !== "__new"; });
+    d.addEventListener("click", e => {
+        const b = e.target.closest("[data-g]");
+        if (!b)
+            return;
+        const g = b.dataset.g;
+        if (g === "x")
+            return fin(null);
+        if (g === "x2") {
+            sel.has(b.dataset.id) ? sel.delete(b.dataset.id) : sel.add(b.dataset.id);
+            return b.classList.toggle("on", sel.has(b.dataset.id));
+        }
+        const topic = val("pt") === "__new" ? val("ptn").slice(0, 80) : val("pt"), err = m => { d.querySelector("#perr").textContent = m; };
+        if (!topic)
+            return err("Choose or name a topic.");
+        if (kind === "ann" && (!val("pti") || !val("ptx")))
+            return err("Add a title and a message.");
+        if (kind === "mat" && (!val("pti") || !/^https?:\/\//i.test(val("ptu"))))
+            return err("Add a title and a link starting with http:// or https://");
+        XSEL.clear();
+        sel.forEach(x => XSEL.add(x));
+        fin({ topic, term: +val("ptm") || 0, week: +val("pwk") || 0, t: val("pti"), x: val("ptx"), u: val("ptu"), n: val("ptn2"), xs: [...sel] });
+    });
+    d.addEventListener("cancel", e => { e.preventDefault(); fin(null); });
+    document.body.append(d);
+    d.showModal();
+});
+async function runPost(lid, kind) {
+    const { c, sibs } = await useCur(lid);
+    const r = await postDlg(lid, kind);
+    if (!r)
+        return;
+    if (kind === "test") {
+        S.xpre = new Set(r.xs);
+        return act.t_newtest({ dataset: { id: lid, topic: r.topic } });
+    }
+    const ld = { id: lid, ...(await loadOf(lid)) }, xs = sibs.filter(l => r.xs.includes(l.id)), xid = xs.length ? newXid() : "";
+    const col = kind === "ann" ? "classAnn" : "materials";
+    const body = kind === "ann" ? { title: r.t, text: r.x } : { title: r.t, url: r.u, note: r.n };
+    const base = { topic: r.topic, term: r.term, week: r.week, ...body, by: S.me.uid, at: serverTimestamp(), ...(xid ? { xid } : {}) };
+    const b = writeBatch(db);
+    if (!c.topics.some(t => t.name === r.topic))
+        await ensureTopic(b, ld, r.topic);
+    b.set(doc(collection(db, col)), { ...base, loadId: lid, sectionId: ld.sectionId });
+    for (const l of xs) {
+        await ensureTopic(b, l, r.topic);
+        b.set(doc(collection(db, col)), { ...base, loadId: l.id, sectionId: l.sectionId });
+    }
+    await b.commit();
+    CUR = null;
+    log((kind === "ann" ? "class announcement " : "posted material ") + r.t);
+    const what = kind === "ann" ? "Announcement" : "Material";
+    toast(xs.length ? `${what} posted to ${xs.length + 1} sections.` : `${what} posted.`);
+    refresh();
+}
+act.p_kind = el => runPost(el.dataset.id, el.dataset.k);
+const kindDlg = (title, extra = "") => new Promise(resolve => {
+    const d = document.createElement("dialog");
+    d.className = "modal pdlg";
+    d.innerHTML = `<h3>${title}</h3>${extra}<div class="cr"><button class="btn" data-g="ann">Announcement</button><button class="btn" data-g="mat">Material</button><button class="btn" data-g="test">Test</button></div><div class="end"><button class="btn ghost" data-g="x">Cancel</button></div>`;
+    const fin = r => { d.close(); d.remove(); resolve(r); };
+    d.addEventListener("click", e => { const b = e.target.closest("[data-g]"); if (b)
+        fin(b.dataset.g === "x" ? null : { k: b.dataset.g, d }); });
+    d.addEventListener("cancel", e => { e.preventDefault(); fin(null); });
+    document.body.append(d);
+    d.showModal();
+});
+act.p_open = async el => {
+    const lid = el.dataset.id;
+    await useCur(lid);
+    const r = await kindDlg(`Post to ${esc(CUR.c.secName)}`);
+    if (r)
+        await runPost(lid, r.k);
+};
+/* several sections at once: pick a subject, tick its sections, then what to post */
+act.p_multi = async el => {
+    const loads = (await myLoads()).filter(l => l.sn);
+    const subs = [...new Set(loads.map(l => l.sn))].filter(sn => loads.filter(l => l.sn === sn).length > 1);
+    if (!subs.length)
+        return toast("You need at least two sections of the same subject.", "bad");
+    const sn0 = el.dataset.sn && subs.includes(el.dataset.sn) ? el.dataset.sn : subs[0];
+    const d = document.createElement("dialog");
+    d.className = "modal pdlg";
+    const draw = sn => {
+        d.innerHTML = `<h3>Post to several sections</h3><label for="msn">Subject</label><select id="msn">${subs.map(s => `<option value="${esc(s)}" ${s === sn ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>
+    <label>Sections</label><div class="xrow">${loads.filter(l => l.sn === sn).map(l => `<button type="button" class="xchip on" data-g="tog" data-id="${l.id}">${esc(l.sec)}</button>`).join("")}</div>
+    <p class="mut sm" id="perr" role="alert"></p><div class="cr"><button class="btn" data-g="ann">Announcement</button><button class="btn" data-g="mat">Material</button><button class="btn" data-g="test">Test</button></div><div class="end"><button class="btn ghost" data-g="x">Cancel</button></div>`;
+    };
+    const fin = () => { d.close(); d.remove(); };
+    d.addEventListener("change", e => { if (e.target.id === "msn")
+        draw(e.target.value); });
+    d.addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-g]");
+        if (!b)
+            return;
+        const g = b.dataset.g;
+        if (g === "x")
+            return fin();
+        if (g === "tog")
+            return b.classList.toggle("on");
+        const ids = [...d.querySelectorAll(".xchip.on")].map(x => x.dataset.id);
+        if (ids.length < 2)
+            return void (d.querySelector("#perr").textContent = "Tick at least two sections.");
+        fin();
+        XSEL.clear();
+        ids.slice(1).forEach(x => XSEL.add(x));
+        try {
+            await runPost(ids[0], g);
+        }
+        catch (err) {
+            toast(errMsg(err), "bad");
+        }
+    });
+    d.addEventListener("cancel", e => { e.preventDefault(); fin(); });
+    draw(sn0);
+    document.body.append(d);
+    d.showModal();
 };

@@ -52,10 +52,14 @@ function progressOf(d, loadId) { const as = d.acts.filter(a => a.loadId === load
 export const curTerm = () => { const n = +((S.set.term || "").match(/\d/) || [1])[0]; return n >= 1 && n <= 3 ? n : 1; };
 const COLORS = ["#1d4ed8", "#0f766e", "#6d28d9", "#b45309", "#be185d", "#0369a1"];
 export const colorOf = id => COLORS[[...String(id)].reduce((n, c) => n + c.charCodeAt(0), 0) % COLORS.length];
+const ring = (p, c) => `<div class="ring"><svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--line)" stroke-width="4"/><circle cx="18" cy="18" r="15.5" fill="none" stroke="${c}" stroke-width="4" stroke-linecap="round" pathLength="100" stroke-dasharray="${p} 100"/></svg><i>${p}%</i></div>`;
 export const subjCard = (d, l) => {
-    const s = d.subjects.find(x => x.id === l.subjectId) || {}, pr = progressOf(d, l.id), as = d.acts.filter(a => a.loadId === l.id);
+    const s = d.subjects.find(x => x.id === l.subjectId) || {}, pr = progressOf(d, l.id), as = d.acts.filter(a => a.loadId === l.id), c = colorOf(s.name || l.id);
     const sts = as.map(a => status(a, d.sm[a.id])), todo = sts.filter(x => x === "open" || x === "progress").length, miss = sts.filter(x => x === "missed").length;
-    return `<a class="sjc" href="#/subject/${l.id}" style="--c:${colorOf(s.name || l.id)}"><div class="sjh"><span class="chip">${esc(s.type || "core")}</span><h3>${esc(s.name || "Subject")}</h3>${l.teacherName ? `<div class="sm">${esc(l.teacherName)}</div>` : ""}</div>
-  <div class="sjb"><div class="row between sm"><span>${pr.done}/${pr.n} done</span><b>${pr.p}%</b></div>${bar(pr.p, pr.p == 100 ? "ok" : "")}
-  <div class="row" style="margin-top:8px">${todo ? badge(todo + " to do", "info") : ""}${miss ? badge(miss + " missed", "bad") : ""}${!todo && !miss ? badge(pr.n ? "All caught up" : "No activities yet", "mut") : ""}</div></div></a>`;
+    const next = as.filter((a, i) => ["open", "progress", "retake"].includes(sts[i]) && a.closes)[0];
+    const nextTxt = next ? " · next due " + new Date(next.closes).toLocaleDateString("en-PH", { weekday: "short" }) : miss ? " · overdue" : "";
+    return `<div class="sjcard" style="--c:${c}"><div class="bar4"></div><div class="in"><div class="hd">${ring(pr.p, c)}<div><h3>${esc(s.name || "Subject")}</h3>${l.teacherName ? `<div class="t">Teacher: ${esc(l.teacherName)}</div>` : ""}</div></div>
+  <div>${todo ? badge(todo + " to do", "warn") : ""}${miss ? badge(miss + " missed", "bad") : ""}${!todo && !miss ? badge(pr.n ? "All caught up" : "No activities yet", "ok") : ""}</div>
+  <div class="mut sm">${pr.done} of ${pr.n} done${nextTxt}</div>
+  <div class="btns"><a class="btn" href="#/subject/${l.id}">Open</a><a class="btn ghost" href="#/subject/${l.id}/mats">Materials</a></div></div></div>`;
 };

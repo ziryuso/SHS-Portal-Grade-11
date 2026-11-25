@@ -23,8 +23,9 @@ pages.home = async () => {
     const minor = m.minor === undefined ? `<div class="card"><h3>Are you a minor (under 18)?</h3><p class="mut">If yes, a parent or guardian must give permission to use this portal.</p>
     <button class="btn" data-a="minor" data-id="1">Yes</button> <button class="btn ghost" data-a="minor" data-id="0">No</button></div>` : "";
     return `<div class="banner"><h1>${greet()}, ${esc(m.name.split(",").pop().trim().split(" ")[0])}!</h1>
-  <p>${fday(Date.now())}${d.sec?.name ? " · " + esc(d.sec.name) : ""}</p></div>
+  <p>${d.sec?.name ? "Section " + esc(d.sec.name) : ""}${S.set.term ? " · " + esc(S.set.term) : ""} · ${fday(Date.now())}</p></div>
   ${minor}
+  ${todo[0] ? `<div class="dueb"><div><small>Due next</small><b>${esc(todo[0].a.title)}</b><span>${esc(subjName(d, loadOf(d, todo[0].a)))} · ${todo[0].a.closes ? "closes " + fdate(todo[0].a.closes) : "no deadline"}</span></div><a class="btn" href="#/take/${todo[0].a.id}">${todo[0].st === "progress" ? "Resume" : "Start"}</a></div>` : ""}
   <div class="cards stats4">${stat("Activities to do", todo.length, todo.length ? "Start with the earliest deadline" : "You're all caught up", "clock", todo.length ? "warn" : "ok")}
   ${stat("Completed", `${d.subs.length}/${d.acts.length}`, "Activities answered", "check", "ok")}
   ${stat("Average score", avg == null ? "–" : avg + "%", "Across graded activities", "star")}
@@ -104,17 +105,17 @@ document.addEventListener("click", e => { if (V.menu && !e.composedPath().some(n
 act.sj_week = el => { V.week = +el.dataset.w; sjDraw(); };
 act.sj_tab = el => { V.tab = el.dataset.k; sjDraw(); };
 act.sj_f = el => { V.f = el.dataset.k; sjDraw(); };
-pages.subject = async ([id]) => {
+pages.subject = async ([id, tab0]) => {
     const d = await data(), l = d.loads.find(x => x.id === id);
     if (!l)
         return `<div class="card">${empty("Subject not found.")}<p class="right"><a class="btn" href="#/subjects">Back</a></p></div>`;
     /* Ask Firestore only for this student's section (what the rules allow), then pick this subject here. */
     const sid = S.me.sectionId;
     const [mats, anns] = await Promise.all([list("materials", where("sectionId", "==", sid)).catch(() => []), list("classAnn", where("sectionId", "==", sid)).catch(() => [])]);
-    Object.assign(V, { d, l, mats: mats.filter(m => m.loadId === id), anns: anns.filter(x => x.loadId === id), as: d.acts.filter(a => a.loadId === id), week: 0, menu: false, tab: "timeline", f: "all", term: curTerm() });
+    Object.assign(V, { d, l, mats: mats.filter(m => m.loadId === id), anns: anns.filter(x => x.loadId === id), as: d.acts.filter(a => a.loadId === id), week: 0, menu: false, tab: tab0 === "mats" ? "mats" : "timeline", f: "all", term: curTerm() });
     const all = itemsOf();
     if (!all.some(i => i.term === V.term) && all.length)
         V.term = [1, 2, 3].find(t => all.some(i => i.term === t)) ?? V.term;
     const s = d.subjects.find(x => x.id === l.subjectId) || {};
     return `<div class="sjtop" style="--c:${colorOf(s.name || l.id)}"><a class="back" href="#/subjects">← Subjects</a><h1>${esc(subjName(d, l))}</h1>${l.teacherName ? `<div>Teacher: ${esc(l.teacherName)}</div>` : ""}</div><div id="sjw">${sjView()}</div>`;
-};
+};
