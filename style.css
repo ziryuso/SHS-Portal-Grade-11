@@ -1694,3 +1694,9 @@ body.is-teacher .tabs.ctabs > a.on { background: transparent; color: var(--pri);
 .ring svg { width: 56px; height: 56px; transform: rotate(-90deg); }
 .ring i { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 13px; }
 .sjcard .btns { display: flex; gap: 8px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line); }
+
+/* phone: match the mobile mockups (teacher feed hides the side cards; student keeps "Coming up" only) */
+@media (max-width: 900px) {
+  body.is-teacher .feedgrid .side2 { display: none; }
+  .feedgrid .side2 .card:has(a.tp) { display: none; }
+}
