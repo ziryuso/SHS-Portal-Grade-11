@@ -8,8 +8,8 @@ import {
     stat, tbl, toast, ts, updateDoc, where, writeBatch
 } from "./core.js";
 import {
-    TW, byName, chunk, counted, fdlg, fm, mean, mini,
-    myLoads, pages, sp, studentsFor, subsFor, twBadge
+    TW, XF, byName, chunk, counted, ensureTopic, fdlg, fm, mean, mini,
+    myLoads, newXid, pages, siblingLoads, sp, studentsFor, subsFor, twBadge, xBadge
 } from "./teacher-shared.js";
 
 /* ---------- classes (each class card opens the class) ---------- */
@@ -130,13 +130,13 @@ pages.load = async ([id, tab = "activities", extra]) => {
     const state = a => a.draft ? ["Draft", "mut"] : a.opens && Date.now() < a.opens ? ["Scheduled", "info"] : a.closes && Date.now() > a.closes ? ["Closed", "bad"] : ["Open", "ok"];
     const testItem = a => {
         const ss = c.subs.filter(s => s.actId === a.id), tg = ss.filter(s => s.graded === false).length, [sl, sk] = state(a);
-        return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl, sk)}${twBadge(a)}${a.release ? " " + badge("Answers released", "ok") : ""}
+        return `<div class="item tst"><div style="flex:1;min-width:220px"><b>${esc(a.title)}</b> ${badge(sl, sk)}${twBadge(a)}${xBadge(a)}${a.release ? " " + badge("Answers released", "ok") : ""}
     <div class="mut sm">${[`${a.questions.length} items`, `${a.totalPts} pts`, `${a.attempts} attempt${a.attempts > 1 ? "s" : ""}`, a.timeLimit ? a.timeLimit + " min" : "", a.closes ? "Due " + fdate(a.closes) : "", a.opens && Date.now() < a.opens ? "Opens " + fdate(a.opens) : ""].filter(Boolean).join(" · ")}</div>
     ${a.draft ? "" : `<div class="sm"><b>${new Set(ss.map(s => s.uid)).size}</b> of ${c.studs.length} turned in · Avg <b>${fm(mean(ss.filter(counted).map(sp)))}</b>${tg ? ` · <a href="#/grade/${a.id}">${badge(tg + " to grade", "warn")}</a>` : ""}</div>`}</div>
     <div class="row">${a.draft ? "" : `<a class="btn sm" href="#/load/${id}/results/${a.id}">Students</a>`}${a.hasEssay ? `<a class="btn sm ghost" href="#/grade/${a.id}">Grade</a>` : ""}${ED ? `<a class="btn sm ghost" href="#/editor/${id}/${a.id}">Edit</a>${btn("relact", a.release ? "Hide answers" : "Release answers", a.id, "ghost")}${btn("dupact", "Duplicate", a.id, "ghost")}${btn("delact", "Delete", a.id, "danger")}` : ""}</div></div>`;
     };
-    const annItem = x => `<div class="item"><div><b>${esc(x.title || "Announcement")}</b>${twBadge(x)}<p>${esc(x.text).replace(/\n/g, "<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${ED ? `<div class="row">${btn("t_tag", "Term/Week", x.id, "ghost", `data-col="classAnn" data-t="${x.term || ""}" data-w="${x.week || ""}"`)}${btn("t_delann", "Delete", x.id, "danger")}</div>` : ""}</div>`;
-    const matItem = m => `<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${m.note ? `<div class="mut sm">${esc(m.note)}</div>` : ""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${ED ? btn("t_tag", "Term/Week", m.id, "ghost", `data-col="materials" data-t="${m.term || ""}" data-w="${m.week || ""}"`) + btn("t_delmat", "Delete", m.id, "danger") : ""}</div></div>`;
+    const annItem = x => `<div class="item"><div><b>${esc(x.title || "Announcement")}</b>${twBadge(x)}${xBadge(x)}<p>${esc(x.text).replace(/\n/g, "<br>")}</p><div class="mut sm">${fdate(ts(x.at))}</div></div>${ED ? `<div class="row">${btn("t_tag", "Term/Week", x.id, "ghost", `data-col="classAnn" data-t="${x.term || ""}" data-w="${x.week || ""}"`)}${btn("t_delann", "Delete", x.id, "danger")}</div>` : ""}</div>`;
+    const matItem = m => `<div class="item"><div><b>${esc(m.title)}</b>${twBadge(m)}${xBadge(m)}${m.note ? `<div class="mut sm">${esc(m.note)}</div>` : ""}<div class="mut sm">${fdate(ts(m.at))}</div></div><div class="row"><a class="btn sm ghost" href="${esc(m.url)}" target="_blank" rel="noopener noreferrer">Open</a>${ED ? btn("t_tag", "Term/Week", m.id, "ghost", `data-col="materials" data-t="${m.term || ""}" data-w="${m.week || ""}"`) + btn("t_delmat", "Delete", m.id, "danger") : ""}</div></div>`;
     const fold = (t, n, items) => `<div class="fold2"><div class="fh"><span class="sp">${t}</span><span class="badge mut">${n}</span></div>${items.join("") || `<p class="mut sm">Nothing yet.</p>`}</div>`;
     const docNames = new Set(c.topics.map(t => t.name));
     const legacy = [...new Set([...c.acts.map(a => a.topic), ...c.mats.map(m => m.topic), ...c.anns.map(x => x.topic)].filter(n => n && !docNames.has(n)))];
@@ -225,13 +225,21 @@ act.t_deltopic = async (el) => {
     refresh();
 };
 act.t_addann = async (el) => {
-    const r = await fdlg("New announcement", [{ k: "t", l: "Title", req: 1 }, { k: "x", l: "Message", ta: 1, req: 1 }, ...TW()], "Post");
+    const sibs = await siblingLoads(el.dataset.id);
+    const r = await fdlg("New announcement", [{ k: "t", l: "Title", req: 1 }, { k: "x", l: "Message", ta: 1, req: 1 }, ...TW(), ...XF(sibs)], "Post");
     if (!r)
         return;
-    const ld = await loadOf(el.dataset.id);
-    await addDoc(collection(db, "classAnn"), { loadId: el.dataset.id, sectionId: ld.sectionId, topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, text: r.x, by: S.me.uid, at: serverTimestamp() });
+    const ld = await loadOf(el.dataset.id), xs = sibs.filter(l => (r.xs || []).includes(l.id)), xid = xs.length ? newXid() : "";
+    const base = { topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, text: r.x, by: S.me.uid, at: serverTimestamp(), ...(xid ? { xid } : {}) };
+    const b = writeBatch(db);
+    b.set(doc(collection(db, "classAnn")), { ...base, loadId: el.dataset.id, sectionId: ld.sectionId });
+    for (const l of xs) {
+        await ensureTopic(b, l, el.dataset.topic);
+        b.set(doc(collection(db, "classAnn")), { ...base, loadId: l.id, sectionId: l.sectionId });
+    }
+    await b.commit();
     log("class announcement " + r.t);
-    toast("Announcement posted.");
+    toast(xs.length ? `Announcement posted to ${xs.length + 1} sections.` : "Announcement posted.");
     refresh();
 };
 act.t_tag = async (el) => {
@@ -248,13 +256,21 @@ act.t_delann = async (el) => { if (await ask("Delete this announcement?", "Delet
     refresh();
 } };
 act.t_addmat = async (el) => {
-    const r = await fdlg("New material", [{ k: "t", l: "Title", ph: "e.g. Module 3", req: 1 }, { k: "u", l: "Link (Google Drive, etc.)", type: "url", ph: "https://", req: 1 }, { k: "n", l: "Note" }, ...TW()], "Post", o => /^https?:\/\//i.test(o.u) ? "" : "The link must start with http:// or https://");
+    const sibs = await siblingLoads(el.dataset.id);
+    const r = await fdlg("New material", [{ k: "t", l: "Title", ph: "e.g. Module 3", req: 1 }, { k: "u", l: "Link (Google Drive, etc.)", type: "url", ph: "https://", req: 1 }, { k: "n", l: "Note" }, ...TW(), ...XF(sibs)], "Post", o => /^https?:\/\//i.test(o.u) ? "" : "The link must start with http:// or https://");
     if (!r)
         return;
-    const ld = await loadOf(el.dataset.id);
-    await addDoc(collection(db, "materials"), { loadId: el.dataset.id, sectionId: ld.sectionId, topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, url: r.u, note: r.n, by: S.me.uid, at: serverTimestamp() });
+    const ld = await loadOf(el.dataset.id), xs = sibs.filter(l => (r.xs || []).includes(l.id)), xid = xs.length ? newXid() : "";
+    const base = { topic: el.dataset.topic, term: +r.term, week: +r.week, title: r.t, url: r.u, note: r.n, by: S.me.uid, at: serverTimestamp(), ...(xid ? { xid } : {}) };
+    const b = writeBatch(db);
+    b.set(doc(collection(db, "materials")), { ...base, loadId: el.dataset.id, sectionId: ld.sectionId });
+    for (const l of xs) {
+        await ensureTopic(b, l, el.dataset.topic);
+        b.set(doc(collection(db, "materials")), { ...base, loadId: l.id, sectionId: l.sectionId });
+    }
+    await b.commit();
     log("posted material " + r.t);
-    toast("Material posted.");
+    toast(xs.length ? `Material posted to ${xs.length + 1} sections.` : "Material posted.");
     refresh();
 };
 act.t_delmat = async (el) => { if (await ask("Delete this material?", "Delete", true)) {
