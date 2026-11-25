@@ -184,7 +184,7 @@ const consBody = () => {
     return `<div class="row between"><h3>Consolidated term grades</h3>${sel}</div>
   ${tbl(["Student", ...subs.map(s => esc(s.name)), "General avg"], rows, "No approved students yet.", "rec nw")}
   <p class="hint">Only grades approved and finalized by the administrator appear here. Tap a student's name to see the full grade sheet.</p>
-  ${u ? `<h3 style="margin-top:14px">${esc(u.name)}</h3>${gradeTable(cur, toMap(fg.filter(x => x.uid === u.id)))}` : ""}`;
+  ${u ? `<div class="row between" style="margin-top:14px"><h3 style="margin:0">${esc(u.name)}</h3><a class="btn ghost" href="#/sf9/${CONS.sec.id}/${u.id}">SF9 report card</a></div>${gradeTable(cur, toMap(fg.filter(x => x.uid === u.id)))}` : ""}`;
 };
 const consDraw = () => { const e = document.getElementById("consol"); if (e)
     e.innerHTML = consBody(); };

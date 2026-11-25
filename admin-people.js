@@ -57,7 +57,7 @@ pages.accounts = async ([role = "student"]) => {
   <div class="card"><input id="q" placeholder="Search name or email…" aria-label="Search accounts" style="max-width:360px;margin-bottom:12px">
   ${tbl(role === "student" ? ["Name", "LRN", "Section", "Email", "Status", ""] : ["Name", "Email", "Status", ""], users.map(x => {
         const [lb, k] = SB[x.status] || [x.status, ""];
-        const actions = `<div class="row">${x.status !== "approved" ? btn("apv", "Approve", x.id, "ok") : btn("deact", "Deactivate", x.id, "ghost")}${btn("delprof", "Delete profile", x.id, "danger")}</div>`;
+        const actions = `<div class="row">${role === "student" && x.sectionId ? `<a class="btn sm ghost" href="#/sf9/${x.sectionId}/${x.id}">SF9</a>` : ""}${x.status !== "approved" ? btn("apv", "Approve", x.id, "ok") : btn("deact", "Deactivate", x.id, "ghost")}${btn("delprof", "Delete profile", x.id, "danger")}</div>`;
         return { attr: `data-s="${esc((x.name + " " + x.email + " " + (x.lrn || "")).toLowerCase())}"`, c: role === "student" ? [esc(x.name), esc(x.lrn || "–"), sn(x.sectionId), esc(x.email), badge(lb, k), actions] : [esc(x.name), esc(x.email), badge(lb, k), actions] };
     }), "No accounts yet.", "nw")}
   <p class="hint">Deleting a profile removes the portal record only. The person can sign in again and re-register.</p></div>`;

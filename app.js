@@ -12,6 +12,7 @@ import * as student from "./student.js";
 import * as teacher from "./teacher.js";
 import * as admin from "./admin.js";
 import {openProf, tryClose, profOpen} from "./profile.js";
+import "./sf9-page.js";
 
 const ROLES = {student, teacher, admin};
 const TITLE = `<span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span>`;
