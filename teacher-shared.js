@@ -1,7 +1,7 @@
 /**
  * teacher-shared.js - shared helpers: query chunking, stats, pop-up form, term/week fields, loads and students lookups.
  */
-import { S, esc, ic, list, pct, where } from "./core.js";
+import { S, collection, db, doc, esc, ic, list, pct, serverTimestamp, where } from "./core.js";
 export const pages = {};
 
 /* ---------- helpers ---------- */
@@ -18,7 +18,7 @@ export const mini = (label, value, icon, tone = "") => `<div class="stat ${tone}
 export const fdlg = (title, fields, ok = "Save", chk) => new Promise(res => {
     const d = document.createElement("dialog");
     d.className = "modal";
-    d.innerHTML = `<h3>${esc(title)}</h3>${fields.map(f => `<label class="f" for="fd_${f.k}">${esc(f.l)}</label>${f.sel ? `<select id="fd_${f.k}">${f.sel.map(([x, t]) => `<option value="${x}" ${x == f.def ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>` : f.ta ? `<textarea id="fd_${f.k}" rows="3"></textarea>` : `<input id="fd_${f.k}" ${f.type ? `type="${f.type}"` : ""} placeholder="${esc(f.ph || "")}">`}`).join("")}<p class="bad sm" id="fd_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">${esc(ok)}</button></div>`;
+    d.innerHTML = `<h3>${esc(title)}</h3>${fields.map(f => `<label class="f" for="fd_${f.k}">${esc(f.l)}</label>${f.cb ? f.cb.map(([x, t]) => `<label class="f inline"><input type="checkbox" class="fd_cb_${f.k}" value="${esc(x)}"> ${esc(t)}</label>`).join("") : f.sel ? `<select id="fd_${f.k}">${f.sel.map(([x, t]) => `<option value="${x}" ${x == f.def ? "selected" : ""}>${esc(t)}</option>`).join("")}</select>` : f.ta ? `<textarea id="fd_${f.k}" rows="3"></textarea>` : `<input id="fd_${f.k}" ${f.type ? `type="${f.type}"` : ""} placeholder="${esc(f.ph || "")}">`}`).join("")}<p class="bad sm" id="fd_err" role="alert"></p><div class="end"><button class="btn ghost" value="0">Cancel</button><button class="btn" value="1">${esc(ok)}</button></div>`;
     let done = false;
     const fin = r => { if (done)
         return; done = true; d.close(); d.remove(); res(r); };
@@ -30,7 +30,7 @@ export const fdlg = (title, fields, ok = "Save", chk) => new Promise(res => {
             return fin(null);
         const o = {};
         for (const f of fields)
-            o[f.k] = d.querySelector("#fd_" + f.k).value.trim();
+            o[f.k] = f.cb ? [...d.querySelectorAll(".fd_cb_" + f.k + ":checked")].map(x => x.value) : d.querySelector("#fd_" + f.k).value.trim();
         const bad = fields.find(f => f.req && !o[f.k]);
         const m = bad ? bad.l + " is required." : (chk ? chk(o) : "");
         if (m) {
@@ -54,3 +54,18 @@ export async function myLoads() {
 }
 export const subsFor = ids => ids.length ? inQ("submissions", "loadId", ids) : [];
 export const studentsFor = async (secIds) => secIds.length ? (await inQ("users", "sectionId", [...new Set(secIds)])).filter(u => u.role === "student" && u.status === "approved").sort(byName) : [];
+/* ---------- crossposting: same teacher, same subject, different sections ---------- */
+export async function siblingLoads(loadId) {
+    const all = await myLoads(), me = all.find(l => l.id === loadId);
+    return me ? all.filter(l => l.id !== loadId && l.subjectId === me.subjectId).sort((a, b) => a.sec.localeCompare(b.sec)) : [];
+}
+/* checkbox group for fdlg(): "also post to my other sections" */
+export const XF = sibs => sibs.length ? [{ k: "xs", l: "Also post to my other sections of this subject", cb: sibs.map(l => [l.id, l.sec]) }] : [];
+/* make sure the target class has a topic with this name (adds the create to the batch if missing) */
+export async function ensureTopic(b, l, name) {
+    const t = await list("topics", where("loadId", "==", l.id)).catch(() => []);
+    if (!t.some(x => x.name === name))
+        b.set(doc(collection(db, "topics")), { loadId: l.id, sectionId: l.sectionId, name, by: S.me.uid, at: serverTimestamp() });
+}
+export const newXid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+export const xBadge = x => x.xid ? ` <span class="badge info" title="Posted to several of your sections">Crossposted</span>` : "";
