@@ -8,7 +8,7 @@ import {
     shuffle, toLocalInput, toast, ts, v, where, writeBatch
 } from "./core.js";
 import { imgToData, readDocx } from "./docx.js";
-import { curTerm, pages } from "./teacher-shared.js";
+import { crossPostHtml, curTerm, pages, pickedLoads, siblingLoads } from "./teacher-shared.js";
 import {
     EYE_ICON, KINDS, PARTS, PART_ORDER, TYPE_LABEL, bindPreviewToggle, createDraftStore,
     finishPanelHtml, iconBtn, injectEditorCss, kindPickerHtml, partOf, partRank, qPts,
@@ -202,7 +202,8 @@ pages.editor = async ([loadId, actId]) => {
     if (!ls.exists() || ls.data().teacherUid !== S.me.uid)
         return `<div class="card">${empty("Class not found.")}</div>`;
     const ld = ls.data();
-    E = { loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false, pdf: false }, qs: [], qimg: "", tab: "type", kind: null, part: "mc" };
+    E = { loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false, pdf: false }, qs: [], qimg: "", tab: "type", kind: null, part: "mc", sibs: [] };
+    if (!actId) E.sibs = await siblingLoads(loadId).catch(() => []);   // other sections of the same subject
     if (actId) {
         const [as, ks, ss] = await Promise.all([getDoc(doc(db, "activities", actId)), getDoc(doc(db, "keys", actId)), list("submissions", where("actId", "==", actId))]);
         if (!as.exists() || !ks.exists() || as.data().by !== S.me.uid || as.data().v !== 2)
@@ -322,6 +323,7 @@ pages.editor = async ([loadId, actId]) => {
 
   <section class="ed-card t-fin">${step(4, "Finish")}
   ${finishPanelHtml({ pdf: m.pdf })}
+  ${crossPostHtml(E.sibs)}
   <div class="efoot"><span class="sp"></span>${saveBtns}</div></section>
   </div>
 
@@ -566,6 +568,9 @@ act.esave = async (el) => {
         return toast("Add at least one question.", "bad");
     if (m.opens && m.closes && m.closes <= m.opens)
         return toast("The deadline must be after the opening time.", "bad");
+    const targets = E.actId ? [] : pickedLoads(E.sibs);
+    if (targets.some(t => t.due && m.opens && t.due <= m.opens))
+        return toast("A section's due date must be after the opening time.", "bad");
     el.disabled = true;
     try {
         const salt = newSalt(), questions = [], ans = {};
@@ -599,11 +604,17 @@ act.esave = async (el) => {
         if (JSON.stringify(data).length > 900000)
             throw new Error("This activity has too many or too large pictures. Remove a few pictures or use smaller ones.");
         const ref = E.actId ? doc(db, "activities", E.actId) : doc(collection(db, "activities")), b = writeBatch(db);
+        const gid = targets.length ? ref.id : "";   // links the copies so they can be found together later
         if (E.actId)
             b.update(ref, data);
         else
-            b.set(ref, { ...data, by: S.me.uid, at: serverTimestamp() });
+            b.set(ref, { ...data, by: S.me.uid, at: serverTimestamp(), ...(gid ? { crossPostGroupId: gid } : {}) });
         b.set(doc(db, "keys", ref.id), { by: S.me.uid, loadId: E.loadId, sectionId: E.sectionId, ans });
+        for (const t of targets) {   // one independent copy per ticked section (no submissions or scores carried over)
+            const r2 = doc(collection(db, "activities"));
+            b.set(r2, { ...data, loadId: t.id, sectionId: t.sectionId, closes: t.due || data.closes, by: S.me.uid, at: serverTimestamp(), crossPostGroupId: gid });
+            b.set(doc(db, "keys", r2.id), { by: S.me.uid, loadId: t.id, sectionId: t.sectionId, ans });
+        }
         await b.commit();
         try {
             DRAFT?.clear();
@@ -611,7 +622,8 @@ act.esave = async (el) => {
         }
         catch { }
         log((E.actId ? "updated" : "posted") + " activity " + m.title);
-        toast(draft ? "Saved as draft. Students cannot see it yet." : E.actId ? "Activity updated." : "Activity published to students.");
+        const extra = targets.length ? ` (+${targets.length} other section${targets.length > 1 ? "s" : ""})` : "";
+        toast(draft ? "Saved as draft. Students cannot see it yet." + extra : E.actId ? "Activity updated." : "Activity published to students." + extra);
         go(`load/${E.loadId}/activities`);
     }
     catch (e) {
