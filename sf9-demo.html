@@ -1,0 +1,14 @@
+<!doctype html><html><head><meta charset="utf-8"><title>SF9 preview</title>
+<link rel="stylesheet" href="sf9.css"><style>body{margin:0;background:#fff}</style></head>
+<body><div id="sf9"></div>
+<script type="module">
+import { renderSF9 } from './sf9.js';
+const q=new URLSearchParams(location.search);
+const filled=q.get('blank')===null;
+renderSF9(document.getElementById('sf9'), filled?{
+  name:'DELA CRUZ, JUAN A.', age:16, sex:'Male', lrn:'123456789012', grade:11, section:'Newton', track:'Academic',
+  attendance:{months:['Aug','Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Total'],classDays:[10,22,21,20,15,20,19,22,20,18,5,192],absent:[0,1,0,2,0,1,0,0,1,0,0,5]},
+  grades:{'Effective Communication':{1:88,2:90,3:91},'Mabisang Komunikasyon':{1:85,2:87,3:89},'General Mathematics':{1:92,2:93,3:94},'General Science':{1:80,2:82,3:84},'Life and Career Skills':{1:90,2:91,3:92},'Pag-aaral ng Kasaysayan at Lipunang Pilipino':{1:78,2:80,3:83}},
+  electives:[{name:'Elective 1',grade:90},{name:'Elective 2',grade:88},{name:'Elective 3',grade:86}]
+}:{});
+</script></body></html>

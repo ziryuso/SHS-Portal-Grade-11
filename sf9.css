@@ -1,8 +1,8 @@
 /* SF9 - Learner's Performance Report (2026-2027). Pixel replica of SF9-2026-2027_v1_3.xlsx */
-@page sf9{size:A4 landscape;margin:0.315in 0.197in 0.197in 0.197in}
+@page sf9{size:A4 landscape;margin:8.4mm 0 0 17.2mm}
 .sf9-wrap{overflow:auto;max-width:100%;page:sf9;background:#fff;padding:10px;border:1px solid #d9dee3;border-radius:10px;box-shadow:0 1px 6px rgba(0,0,0,.08);box-sizing:border-box}
-.sf9-sheet{position:relative;width:1343px;background:#fff;color:#000;font-family:'Bookman Old Style','Bookman','URW Bookman','TeX Gyre Bonum',Georgia,serif;font-size:11pt;line-height:normal;box-sizing:content-box;text-align:left;margin:0 auto}
-.sf9-grid{border-collapse:collapse;table-layout:fixed;width:1343px;max-width:none;min-width:0;background:#fff;margin:0}
+.sf9-sheet{position:relative;width:1428px;background:#fff;color:#000;font-family:'Bookman Old Style','Bookman','URW Bookman','TeX Gyre Bonum',Georgia,serif;font-size:11pt;line-height:normal;box-sizing:content-box;text-align:left;margin:0 auto}
+.sf9-grid{border-collapse:collapse;table-layout:fixed;width:1428px;max-width:none;min-width:0;background:#fff;margin:0}
 .sf9-grid tr,.sf9-grid tr:hover{background:transparent}
 .sf9-grid td{padding:0 2px;border:0;overflow:hidden;overflow-wrap:normal;box-sizing:border-box;font-family:inherit;line-height:1.05;text-align:left;background:transparent;text-transform:none;letter-spacing:normal}
 .sf9-logo{position:absolute}
@@ -83,6 +83,8 @@ img.sf9-logo{display:block}
 @media print{
   #main:has(.sf9-wrap)>:not(.sf9-wrap){display:none!important}
   #main:has(.sf9-wrap){padding:0!important;max-width:none!important;margin:0!important}
-  .sf9-wrap{overflow:visible;padding:0;border:0;border-radius:0;box-shadow:none}
-  .sf9-sheet{zoom:.69!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{height:auto!important;margin:0!important;background:#fff!important}
+  .app:has(.sf9-wrap),.main-col:has(.sf9-wrap){display:block!important;min-height:0!important;height:auto!important}
+  .sf9-wrap{overflow:visible;padding:0;margin:0;border:0;border-radius:0;box-shadow:none}
+  .sf9-sheet{margin:0!important;zoom:.69!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
