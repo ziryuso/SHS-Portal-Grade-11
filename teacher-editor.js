@@ -2,13 +2,13 @@
  * teacher-editor.js - activity editor: build questions by hand, paste, import from Word; save as draft or publish.
  */
 import {
-    $, S, act, ask, collection, db,
+    $, $$, S, act, ask, collection, db,
     doc, empty, errMsg, esc, fromLocalInput, getDoc, go, head,
     ic, list, log, newSalt, norm, serverTimestamp, sha,
     shuffle, toLocalInput, toast, ts, v, where, writeBatch
 } from "./core.js";
 import { imgToData, readDocx } from "./docx.js";
-import { curTerm, pages } from "./teacher-shared.js";
+import { curTerm, ensureTopic, newXid, pages, siblingLoads } from "./teacher-shared.js";
 import {
     EYE_ICON, KINDS, PARTS, PART_ORDER, TYPE_LABEL, bindPreviewToggle, createDraftStore,
     finishPanelHtml, iconBtn, injectEditorCss, kindPickerHtml, partOf, partRank, qPts,
@@ -201,13 +201,16 @@ pages.editor = async ([loadId, actId]) => {
     const ls = await getDoc(doc(db, "loads", loadId));
     if (!ls.exists() || ls.data().teacherUid !== S.me.uid)
         return `<div class="card">${empty("Class not found.")}</div>`;
-    const ld = ls.data();
-    E = { loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false, pdf: false }, qs: [], qimg: "", tab: "type", kind: null, part: "mc" };
+    const ld = ls.data(), sibs = await siblingLoads(loadId);
+    E = { sibs, xdone: new Set(), xid: "", loadId, actId: actId || "", sectionId: ld.sectionId, qt: "mc", edit: -1, keep: null, subs: 0, meta: { title: "", instr: "", attempts: 1, opens: 0, closes: 0, timeLimit: 0, shuffle: true, release: false, topic: "", term: curTerm(), week: 1, links: [], draft: false, pdf: false }, qs: [], qimg: "", tab: "type", kind: null, part: "mc" };
     if (actId) {
         const [as, ks, ss] = await Promise.all([getDoc(doc(db, "activities", actId)), getDoc(doc(db, "keys", actId)), list("submissions", where("actId", "==", actId))]);
         if (!as.exists() || !ks.exists() || as.data().by !== S.me.uid || as.data().v !== 2)
             return `<div class="card">${empty("This activity cannot be edited (it may be from the old version). Create a new one.")}</div>`;
         const a = as.data(), key = ks.data().ans;
+        E.xid = a.xid || "";
+        if (E.xid)
+            (await list("activities", where("xid", "==", E.xid), where("by", "==", S.me.uid))).forEach(x => E.xdone.add(x.loadId));
         E.subs = ss.length;
         E.meta = { title: a.title, instr: a.instructions || "", attempts: a.attempts, opens: a.opens || 0, closes: a.closes || 0, timeLimit: a.timeLimit || 0, shuffle: !!a.shuffle, release: !!a.release, topic: a.topic || "", term: a.term || curTerm(), week: a.week || 1, links: a.links || [], draft: !!a.draft, pdf: !!a.allowPdf };
         E.qs = a.questions.map((q, i) => {
@@ -295,6 +298,7 @@ pages.editor = async ([loadId, actId]) => {
   ${mv("m_close", "Due", `<input id="m_close" type="datetime-local" value="${toLocalInput(m.closes)}">`)}</div>
   <div class="eflags"><label class="f inline"><input type="checkbox" id="m_shuf" ${m.shuffle ? "checked" : ""}> Shuffle questions and choices</label>
   <label class="f inline"><input type="checkbox" id="m_rel" ${m.release ? "checked" : ""}> Show correct answers after submit</label></div>
+  ${E.sibs.length ? `<div class="eflags xpost"><b>Also post to my other sections of this subject</b>${E.sibs.map(l => `<label class="f inline"><input type="checkbox" class="xs" value="${l.id}" ${E.xdone.has(l.id) ? "checked disabled" : ""}> ${esc(l.sec)}${E.xdone.has(l.id) ? " (already posted)" : ""}</label>`).join("")}<p class="hint">Each section gets its own copy with the same questions, term/week, open and due dates. Submissions and scores stay separate per section.</p></div>` : ""}
   <details class="more" ${m.instr || (m.links || []).length ? "open" : ""}><summary>Instructions and attached files</summary>
   <label class="f" for="m_instr">Instructions</label><textarea id="m_instr" rows="2">${esc(m.instr)}</textarea>
   <label class="f" for="m_links">Attached files <span class="mut">(Title link, one per line)</span></label><textarea id="m_links" rows="2" placeholder="Module 3 https://drive.google.com/…">${esc((m.links || []).map(l => (l.t ? l.t + " " : "") + l.u).join("\n"))}</textarea></details></section>
@@ -599,19 +603,39 @@ act.esave = async (el) => {
         if (JSON.stringify(data).length > 900000)
             throw new Error("This activity has too many or too large pictures. Remove a few pictures or use smaller ones.");
         const ref = E.actId ? doc(db, "activities", E.actId) : doc(collection(db, "activities")), b = writeBatch(db);
+        const xs = E.sibs.filter(l => !E.xdone.has(l.id) && $$(".xpost .xs:checked").some(c => c.value === l.id)), xid = E.xid || (xs.length ? newXid() : "");
+        if (xid)
+            data.xid = xid;
         if (E.actId)
             b.update(ref, data);
         else
             b.set(ref, { ...data, by: S.me.uid, at: serverTimestamp() });
         b.set(doc(db, "keys", ref.id), { by: S.me.uid, loadId: E.loadId, sectionId: E.sectionId, ans });
         await b.commit();
+        const failed = [];
+        for (const l of xs) {
+            try {
+                const b2 = writeBatch(db), r2 = doc(collection(db, "activities"));
+                await ensureTopic(b2, l, m.topic);
+                b2.set(r2, { ...data, loadId: l.id, sectionId: l.sectionId, by: S.me.uid, at: serverTimestamp() });
+                b2.set(doc(db, "keys", r2.id), { by: S.me.uid, loadId: l.id, sectionId: l.sectionId, ans });
+                await b2.commit();
+            }
+            catch {
+                failed.push(l.sec);
+            }
+        }
         try {
             DRAFT?.clear();
             localStorage.removeItem(dkey(E.loadId));
         }
         catch { }
         log((E.actId ? "updated" : "posted") + " activity " + m.title);
-        toast(draft ? "Saved as draft. Students cannot see it yet." : E.actId ? "Activity updated." : "Activity published to students.");
+        const more = xs.length - failed.length;
+        if (failed.length)
+            toast("Saved here, but could not post to: " + failed.join(", ") + ". Open that class and try again.", "bad");
+        else
+            toast((draft ? "Saved as draft. Students cannot see it yet." : E.actId ? "Activity updated." : "Activity published to students.") + (more ? ` Also posted to ${more} other section${more > 1 ? "s" : ""}.` : ""));
         go(`load/${E.loadId}/activities`);
     }
     catch (e) {
