@@ -12,7 +12,7 @@ import * as student from "./student.js";
 import * as teacher from "./teacher.js";
 import * as admin from "./admin.js";
 import {openProf, tryClose, profOpen} from "./profile.js";
-import "./sf9-page.js";
+import {sf9Nav, sf9Page} from "./sf9-page.js";
 
 const ROLES = {student, teacher, admin};
 const TITLE = `<span class="t1">TTVHS</span> <span class="t2">SHS Student Portal</span>`;
@@ -79,7 +79,7 @@ function navLinks(items) {
 }
 
 function buildShell() {
-  const links = navLinks(ROLES[S.me.role].nav());
+  const links = navLinks([...ROLES[S.me.role].nav(), ...sf9Nav()]);
   $("#app").innerHTML = `<div class="app">
     <aside class="side">
       <div class="brand"><img class="logo-img" src="logo.jpg" alt=""><b>TTVHS</b></div>
@@ -116,7 +116,7 @@ async function render() {
   try { S.cleanup?.(); } catch {}
   S.cleanup = S.after = null;
 
-  const {pages} = ROLES[S.me.role];
+  const base = ROLES[S.me.role].pages, pages = S.me.role === "student" ? base : {...base, sf9: sf9Page};
   const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean).map(decodeURIComponent);
   const name = pages[parts[0]] ? parts[0] : "home";
   const main = $("#main");

@@ -75,3 +75,16 @@ export function sf9Html(data){
   return d.innerHTML;
 }
 export const SF9_CORE = Object.values(SUBJECTS);
+export const SF9_WIDTH = 1343;
+/** Scales the sheet down to fit its container (desktop/laptop screens). Returns a cleanup function. */
+export function fitSF9(wrap){
+  const sheet = wrap && wrap.querySelector('.sf9-sheet');
+  if (!sheet) return () => {};
+  const apply = () => {
+    const cs = getComputedStyle(wrap), pad = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+    sheet.style.zoom = String(Math.min(1, Math.max(.3, (wrap.clientWidth - pad) / SF9_WIDTH)));
+  };
+  apply();
+  const ro = new ResizeObserver(apply); ro.observe(wrap);
+  return () => ro.disconnect();
+}
